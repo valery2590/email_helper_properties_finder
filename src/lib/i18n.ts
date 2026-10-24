@@ -146,7 +146,7 @@ export interface Translations {
   formattedAlertTitle: string;
   viewFullJson: string;
 
-  // Pisos de Muestra
+  // Pisos de Muestra & En Vivo
   samplePropsTitle: string;
   samplePropsSubtitle: (savings: string) => string;
   sampleProperties: PropertyData[];
@@ -156,6 +156,25 @@ export interface Translations {
   dtiShortLabel: string;
   upfrontShortLabel: string;
   linkViewProperty: string;
+
+  // Propiedades en Vivo (Gmail & Supabase)
+  tabPropsLiveTitle: string;
+  tabPropsSubtitleLive: (count: number) => string;
+  btnRefreshProperties: string;
+  btnRefreshing: string;
+  filterAll: string;
+  filterViableDirect: string;
+  filterBrokerViable: string;
+  badgeFromGmail: string;
+  badgeDirectViableCard: string;
+  badgeBrokerViableCard: (ltv: number) => string;
+  brokerSavingsAdvantage: (ltv: number, months: number, upfront: string) => string;
+  dbConnectedBadge: string;
+  dbMemoryBadge: string;
+  noPropertiesYetTitle: string;
+  noPropertiesYetDesc: string;
+  showingSamplePropsNote: string;
+  sourceEmailSubjectPrefix: string;
 
   // Documentación
   docsFiscalTitle: string;

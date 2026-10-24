@@ -12,6 +12,7 @@ import {
 } from '@/lib/financial-engine';
 import { parsePropertiesFromHtml } from '@/lib/html-parser';
 import { propertyStore } from '@/lib/property-store';
+import { saveEvaluatedProperty } from '@/lib/supabase';
 
 interface WebhookRequestBody {
   property?: PropertyData;
@@ -274,16 +275,28 @@ export async function POST(request: NextRequest) {
       ? (parsedBody as { metadata?: { subject?: string; from?: string } }).metadata
       : undefined;
 
-    // Registrar en el almacén de propiedades evaluadas
-    filteredReports.forEach((rep) => {
+    // Registrar en Supabase y almacén únicamente aquellos que sean viable-directo o viable-con-broker
+    const savedViableRecords: unknown[] = [];
+    for (const rep of filteredReports) {
       const scenarios = calculateFinancingScenarios(rep.propertyPrice, activeBuyerProfile, activeMortgageConfig, lang);
-      propertyStore.add({
-        report: rep,
-        brokerScenarios: scenarios,
-        sourceSubject: metadata?.subject,
-        sourceFrom: metadata?.from,
-      });
-    });
+      const isDirectViable = rep.status === 'VIABLE';
+      const isBrokerViable = scenarios.some((s) => s.ltvPercent > 80 && s.status === 'VIABLE');
+
+      if (isDirectViable || isBrokerViable) {
+        const saved = await saveEvaluatedProperty(
+          rep,
+          scenarios,
+          metadata
+            ? {
+                subject: metadata.subject,
+                from: metadata.from,
+                date: (metadata as unknown as Record<string, string>).date,
+              }
+            : undefined
+        );
+        savedViableRecords.push(saved);
+      }
+    }
 
     return NextResponse.json(
       {
