@@ -279,9 +279,30 @@ export async function POST(request: NextRequest) {
       ? (parsedBody as { metadata?: { subject?: string; from?: string } }).metadata
       : undefined;
 
-    // Registrar en Supabase y almacén
+    const subjectStr = (metadata?.subject || '').toLowerCase();
+    if (
+      subjectStr.includes('no está publicado') ||
+      subjectStr.includes('no esta publicado') ||
+      subjectStr.includes('ya no está') ||
+      subjectStr.includes('ya no esta')
+    ) {
+      return NextResponse.json({
+        success: true,
+        message: 'Omitido: inmueble despublicado o retirado',
+        count: 0,
+        results: [],
+      });
+    }
+
+    // Registrar en Supabase y almacén (omitiendo despublicados)
+    const validReports = filteredReports.filter((r) => {
+      const t = (r.property.title || '').toLowerCase();
+      const d = (r.property.description || '').toLowerCase();
+      return !t.includes('no está publicado') && !t.includes('no esta publicado') && !d.includes('ya no está publicado');
+    });
+
     const savedRecords: unknown[] = [];
-    for (const rep of filteredReports) {
+    for (const rep of validReports) {
       const scenarios = calculateFinancingScenarios(rep.propertyPrice, activeBuyerProfile, activeMortgageConfig, lang);
       const saved = await saveEvaluatedProperty(
         rep,
