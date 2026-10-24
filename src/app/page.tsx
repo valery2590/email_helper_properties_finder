@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   DEFAULT_BUYER_PROFILE,
   DEFAULT_SAVINGS_PORTFOLIO,
@@ -13,6 +13,7 @@ import {
   SavingsAccountItem,
 } from '@/lib/financial-engine';
 import { translations, Language } from '@/lib/i18n';
+import { SavedPropertyRecord } from '@/lib/supabase';
 
 export default function Home() {
   // Idioma activo: Español (es) o Italiano (it)
@@ -65,6 +66,32 @@ export default function Home() {
   const [webhookLoading, setWebhookLoading] = useState<boolean>(false);
   const [webhookResponse, setWebhookResponse] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'simulator' | 'webhook' | 'properties' | 'docs'>('simulator');
+
+  // Estado de pisos guardados en Supabase / Almacén (alertas de Gmail)
+  const [liveProperties, setLiveProperties] = useState<SavedPropertyRecord[]>([]);
+  const [loadingLiveProps, setLoadingLiveProps] = useState<boolean>(false);
+  const [livePropsFilter, setLivePropsFilter] = useState<'all' | 'viable' | 'broker_viable'>('all');
+  const [supabaseConnected, setSupabaseConnected] = useState<boolean>(false);
+
+  const fetchLiveProperties = async () => {
+    setLoadingLiveProps(true);
+    try {
+      const res = await fetch('/api/properties');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.properties)) {
+        setLiveProperties(data.properties);
+        setSupabaseConnected(Boolean(data.isSupabaseConnected));
+      }
+    } catch (err) {
+      console.warn('Error fetching live properties:', err);
+    } finally {
+      setLoadingLiveProps(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLiveProperties();
+  }, []);
 
   // Función para alternar el idioma y sincronizar los ejemplos de prueba
   const handleLanguageChange = (newLang: Language) => {
@@ -1119,87 +1146,286 @@ export default function Home() {
           </div>
         )}
 
-        {/* TAB 3: PISOS DE MUESTRA EN BARCELONA */}
+        {/* TAB 3: PISOS EVALUADOS (GMAIL & SUPABASE) */}
         {activeTab === 'properties' && (
           <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-bold text-white">{t.samplePropsTitle}</h2>
-              <p className="text-xs text-slate-400 mt-1">
-                {t.samplePropsSubtitle(`${currentSavings.toLocaleString(numberLocale)} €`)}
-              </p>
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                  <h2 className="text-lg font-bold text-white">
+                    {liveProperties.length > 0 ? t.tabPropsLiveTitle : t.samplePropsTitle}
+                  </h2>
+                  <span
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                      supabaseConnected
+                        ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                        : 'bg-slate-800 text-slate-400 border-slate-700'
+                    }`}
+                  >
+                    {supabaseConnected ? t.dbConnectedBadge : t.dbMemoryBadge}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  {liveProperties.length > 0
+                    ? t.tabPropsSubtitleLive(liveProperties.length)
+                    : t.samplePropsSubtitle(`${currentSavings.toLocaleString(numberLocale)} €`)}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {/* Filtros */}
+                <div className="flex items-center bg-slate-900 border border-slate-800 p-1 rounded-xl text-xs">
+                  <button
+                    onClick={() => setLivePropsFilter('all')}
+                    className={`px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
+                      livePropsFilter === 'all'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {t.filterAll} ({liveProperties.length > 0 ? liveProperties.length : t.sampleProperties.length})
+                  </button>
+                  <button
+                    onClick={() => setLivePropsFilter('viable')}
+                    className={`px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
+                      livePropsFilter === 'viable'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {t.filterViableDirect}
+                  </button>
+                  <button
+                    onClick={() => setLivePropsFilter('broker_viable')}
+                    className={`px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
+                      livePropsFilter === 'broker_viable'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {t.filterBrokerViable}
+                  </button>
+                </div>
+
+                {/* Botón Refrescar */}
+                <button
+                  disabled={loadingLiveProps}
+                  onClick={fetchLiveProperties}
+                  className="px-3.5 py-1.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-800 text-xs text-slate-200 hover:text-white transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <svg
+                    className={`w-3.5 h-3.5 text-emerald-400 ${loadingLiveProps ? 'animate-spin' : ''}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  {loadingLiveProps ? t.btnRefreshing : t.btnRefreshProperties}
+                </button>
+              </div>
             </div>
 
+            {/* Aviso informativo si todavía no hay pisos registrados desde Gmail */}
+            {liveProperties.length === 0 && (
+              <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 flex items-start gap-3">
+                <span className="text-xl">ℹ️</span>
+                <div className="text-xs space-y-1">
+                  <div className="font-bold text-slate-200">{t.noPropertiesYetTitle}</div>
+                  <p className="text-slate-400 leading-relaxed">{t.noPropertiesYetDesc}</p>
+                  <div className="text-emerald-400 font-medium pt-1">{t.showingSamplePropsNote}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Grid de Pisos: si hay pisos de Gmail/Supabase se muestran los reales, si no los de muestra */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {t.sampleProperties.map((prop) => {
-                const report = evaluatePropertyViability(
-                  prop,
-                  {
-                    currentSavings,
-                    monthlySavingsCapacity: monthlySavings,
-                  },
-                  {
-                    financingPercent: financingLtv,
-                  },
-                  lang
-                );
-                return (
-                  <div
-                    key={prop.id}
-                    className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 flex flex-col justify-between space-y-4 hover:border-slate-700 transition-all"
-                  >
-                    <div>
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                            {prop.district}
+              {liveProperties.length > 0 ? (
+                liveProperties
+                  .filter((p) => {
+                    if (livePropsFilter === 'viable') return p.status === 'VIABLE';
+                    if (livePropsFilter === 'broker_viable') return p.is_broker_viable;
+                    return true;
+                  })
+                  .map((prop) => (
+                    <div
+                      key={prop.id}
+                      className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 flex flex-col justify-between space-y-4 hover:border-slate-700 transition-all shadow-lg"
+                    >
+                      <div className="space-y-2">
+                        {prop.email_subject && (
+                          <div className="flex items-center gap-2 text-[11px] text-slate-400 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800/80">
+                            <span className="text-emerald-400 font-bold">{t.badgeFromGmail}:</span>
+                            <span className="truncate">{prop.email_subject}</span>
+                          </div>
+                        )}
+
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                              {prop.district || 'Barcelona'}
+                            </span>
+                            <h3 className="text-base font-bold text-white mt-1.5">{prop.title}</h3>
+                          </div>
+                          <span
+                            className={`text-xs px-2.5 py-1 rounded-full font-extrabold uppercase ${
+                              prop.status === 'VIABLE'
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                : prop.is_broker_viable
+                                ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30'
+                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            }`}
+                          >
+                            {prop.status === 'VIABLE'
+                              ? t.badgeDirectViableCard
+                              : prop.is_broker_viable
+                              ? t.badgeBrokerViableCard(prop.best_broker_ltv || 95)
+                              : t.statusModerateRisk}
                           </span>
-                          <h3 className="text-base font-bold text-white mt-1.5">{prop.title}</h3>
                         </div>
-                        <span
-                          className={`text-xs px-2.5 py-1 rounded-full font-extrabold uppercase ${
-                            report.status === 'VIABLE'
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        {prop.description && (
+                          <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{prop.description}</p>
+                        )}
+                      </div>
+
+                      {/* Métricas Principales */}
+                      <div className="grid grid-cols-3 gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800/80 text-xs">
+                        <div>
+                          <div className="text-slate-500 text-[10px]">{t.priceLabel}</div>
+                          <div className="font-bold text-white mt-0.5">{prop.price.toLocaleString(numberLocale)} €</div>
+                        </div>
+                        <div>
+                          <div className="text-slate-500 text-[10px]">{t.cuotaLabel} (80%)</div>
+                          <div className="font-bold text-emerald-400 mt-0.5">{prop.monthly_payment_80.toLocaleString(numberLocale)} €</div>
+                        </div>
+                        <div>
+                          <div className="text-slate-500 text-[10px]">{t.dtiShortLabel}</div>
+                          <div className={`font-bold mt-0.5 ${prop.dti_percent_80 <= 33 ? 'text-emerald-400' : 'text-amber-300'}`}>
+                            {prop.dti_percent_80}%
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Destacado de Ventaja con Broker si aplica */}
+                      {prop.is_broker_viable && prop.best_broker_ltv && prop.months_needed_broker !== undefined && (
+                        <div className="bg-gradient-to-r from-teal-950/40 to-emerald-950/30 border border-teal-500/30 rounded-xl p-2.5 text-xs text-teal-300 flex items-center justify-between">
+                          <span>
+                            {t.brokerSavingsAdvantage(
+                              prop.best_broker_ltv,
+                              prop.months_needed_broker,
+                              `${prop.total_upfront_broker?.toLocaleString(numberLocale)} €`
+                            )}
+                          </span>
+                          <span className="font-bold text-white bg-teal-500/20 px-2 py-0.5 rounded text-[11px]">
+                            {prop.monthly_payment_broker?.toLocaleString(numberLocale)} €{t.perMonth}
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs text-slate-400">
+                        <div>
+                          {t.upfrontShortLabel} <strong className="text-white">{prop.total_upfront_80.toLocaleString(numberLocale)} €</strong>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-emerald-400 font-medium">
+                            {prop.months_needed_80 === 0 ? t.timeReadyNow : t.monthsCount(prop.months_needed_80)}
+                          </span>
+                          {prop.url && (
+                            <a
+                              href={prop.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-teal-400 hover:text-teal-300 hover:underline flex items-center gap-1"
+                            >
+                              <span>{t.linkViewProperty}</span>
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+              ) : (
+                /* Fallback a los pisos de muestra si aún no hay registros de Gmail */
+                t.sampleProperties.map((prop) => {
+                  const report = evaluatePropertyViability(
+                    prop,
+                    {
+                      currentSavings,
+                      monthlySavingsCapacity: monthlySavings,
+                    },
+                    {
+                      financingPercent: financingLtv,
+                    },
+                    lang
+                  );
+                  return (
+                    <div
+                      key={prop.id}
+                      className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 flex flex-col justify-between space-y-4 hover:border-slate-700 transition-all"
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                              {prop.district}
+                            </span>
+                            <h3 className="text-base font-bold text-white mt-1.5">{prop.title}</h3>
+                          </div>
+                          <span
+                            className={`text-xs px-2.5 py-1 rounded-full font-extrabold uppercase ${
+                              report.status === 'VIABLE'
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                : report.status === 'MODERATE_RISK'
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                            }`}
+                          >
+                            {report.status === 'VIABLE'
+                              ? t.statusViable
                               : report.status === 'MODERATE_RISK'
-                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                              : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                          }`}
-                        >
-                          {report.status === 'VIABLE'
-                            ? t.statusViable
-                            : report.status === 'MODERATE_RISK'
-                            ? t.statusModerateRisk
-                            : t.statusNotViable}
-                        </span>
+                              ? t.statusModerateRisk
+                              : t.statusNotViable}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-2 line-clamp-2">{prop.description}</p>
                       </div>
-                      <p className="text-xs text-slate-400 mt-2 line-clamp-2">{prop.description}</p>
-                    </div>
 
-                    <div className="grid grid-cols-3 gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800/80 text-xs">
-                      <div>
-                        <div className="text-slate-500 text-[10px]">{t.priceLabel}</div>
-                        <div className="font-bold text-white mt-0.5">{prop.price.toLocaleString(numberLocale)} €</div>
+                      <div className="grid grid-cols-3 gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800/80 text-xs">
+                        <div>
+                          <div className="text-slate-500 text-[10px]">{t.priceLabel}</div>
+                          <div className="font-bold text-white mt-0.5">{prop.price.toLocaleString(numberLocale)} €</div>
+                        </div>
+                        <div>
+                          <div className="text-slate-500 text-[10px]">{t.cuotaLabel} ({financingLtv}%)</div>
+                          <div className="font-bold text-emerald-400 mt-0.5">{report.monthlyMortgagePayment.toLocaleString(numberLocale)} €</div>
+                        </div>
+                        <div>
+                          <div className="text-slate-500 text-[10px]">{t.dtiShortLabel}</div>
+                          <div className="font-bold text-amber-300 mt-0.5">{report.dtiPercent}%</div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="text-slate-500 text-[10px]">{t.cuotaLabel} ({financingLtv}%)</div>
-                        <div className="font-bold text-emerald-400 mt-0.5">{report.monthlyMortgagePayment.toLocaleString(numberLocale)} €</div>
-                      </div>
-                      <div>
-                        <div className="text-slate-500 text-[10px]">{t.dtiShortLabel}</div>
-                        <div className="font-bold text-amber-300 mt-0.5">{report.dtiPercent}%</div>
-                      </div>
-                    </div>
 
-                    <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs text-slate-400">
-                      <div>
-                        {t.upfrontShortLabel} <strong className="text-white">{report.totalUpfrontRequired.toLocaleString(numberLocale)} €</strong>
-                      </div>
-                      <div className="text-emerald-400 font-medium">
-                        {report.savingsTimeline.isReadyNow ? t.timeReadyNow : t.monthsCount(report.savingsTimeline.monthsNeeded)}
+                      <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs text-slate-400">
+                        <div>
+                          {t.upfrontShortLabel} <strong className="text-white">{report.totalUpfrontRequired.toLocaleString(numberLocale)} €</strong>
+                        </div>
+                        <div className="text-emerald-400 font-medium">
+                          {report.savingsTimeline.isReadyNow ? t.timeReadyNow : t.monthsCount(report.savingsTimeline.monthsNeeded)}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
         )}
