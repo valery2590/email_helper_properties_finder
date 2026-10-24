@@ -142,6 +142,30 @@ export async function saveEvaluatedProperty(
   const client = getSupabaseClient();
   if (client) {
     try {
+      // Evitar duplicados si la propiedad ya fue registrada previamente
+      if (record.url) {
+        const { data: existing } = await client
+          .from('properties')
+          .select('id')
+          .eq('url', record.url)
+          .limit(1);
+        if (existing && existing.length > 0) {
+          await client.from('properties').update(record).eq('id', existing[0].id);
+          return { ...record, id: existing[0].id };
+        }
+      } else if (record.title && record.price) {
+        const { data: existing } = await client
+          .from('properties')
+          .select('id')
+          .eq('title', record.title)
+          .eq('price', record.price)
+          .limit(1);
+        if (existing && existing.length > 0) {
+          await client.from('properties').update(record).eq('id', existing[0].id);
+          return { ...record, id: existing[0].id };
+        }
+      }
+
       const { error } = await client.from('properties').insert([record]);
       if (error) {
         console.error('Error insertando en Supabase properties:', error.message);
