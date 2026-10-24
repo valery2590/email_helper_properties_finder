@@ -54,7 +54,11 @@ function extractPropertiesFromPayload(
     // Si viene contenido HTML en el campo `html` o `rawBody`
     if (payload.html || payload.rawBody) {
       const htmlContent = payload.html || payload.rawBody || '';
-      const parsedFromHtml = parsePropertiesFromHtml(htmlContent);
+      const metadata = (payload as unknown as Record<string, unknown>).metadata as { subject?: string; from?: string } | undefined;
+      const parsedFromHtml = parsePropertiesFromHtml(htmlContent, {
+        subject: metadata?.subject,
+        from: metadata?.from,
+      });
       if (parsedFromHtml.length > 0) {
         return {
           properties: parsedFromHtml,
@@ -275,27 +279,22 @@ export async function POST(request: NextRequest) {
       ? (parsedBody as { metadata?: { subject?: string; from?: string } }).metadata
       : undefined;
 
-    // Registrar en Supabase y almacén únicamente aquellos que sean viable-directo o viable-con-broker
-    const savedViableRecords: unknown[] = [];
+    // Registrar en Supabase y almacén
+    const savedRecords: unknown[] = [];
     for (const rep of filteredReports) {
       const scenarios = calculateFinancingScenarios(rep.propertyPrice, activeBuyerProfile, activeMortgageConfig, lang);
-      const isDirectViable = rep.status === 'VIABLE';
-      const isBrokerViable = scenarios.some((s) => s.ltvPercent > 80 && s.status === 'VIABLE');
-
-      if (isDirectViable || isBrokerViable) {
-        const saved = await saveEvaluatedProperty(
-          rep,
-          scenarios,
-          metadata
-            ? {
-                subject: metadata.subject,
-                from: metadata.from,
-                date: (metadata as unknown as Record<string, string>).date,
-              }
-            : undefined
-        );
-        savedViableRecords.push(saved);
-      }
+      const saved = await saveEvaluatedProperty(
+        rep,
+        scenarios,
+        metadata
+          ? {
+              subject: metadata.subject,
+              from: metadata.from,
+              date: (metadata as unknown as Record<string, string>).date,
+            }
+          : undefined
+      );
+      savedRecords.push(saved);
     }
 
     return NextResponse.json(
