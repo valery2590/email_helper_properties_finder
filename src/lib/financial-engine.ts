@@ -662,7 +662,7 @@ export function calculateFinancingScenarios(
     const downPaymentPercent = Math.max(0, 100 - ltv);
     const evalResult = evaluatePropertyViability(
       {
-        title: `Simulación ${ltv}% LTV`,
+        title: lang === 'it' ? `Simulazione ${ltv}% Mutuo` : `Simulación ${ltv}% Hipoteca`,
         price: propertyPrice,
       },
       p,

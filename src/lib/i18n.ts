@@ -6,9 +6,8 @@ export interface Translations {
   // Header
   appTitle: string;
   appSubtitle: string;
-  badgeServerless: string;
   portfolioSavingsLabel: string;
-  
+
   // Perfil Comprador
   buyerProfileTitle: string;
   buyerProfileHeading: string;
@@ -36,8 +35,8 @@ export interface Translations {
 
   // Tabs
   tabSimulator: string;
-  tabWebhook: string;
   tabProperties: string;
+  tabProfile: string;
   tabDocs: string;
 
   // Simulador Inputs
@@ -209,7 +208,6 @@ export const translations: Record<Language, Translations> = {
   es: {
     appTitle: 'PropFinder BCN',
     appSubtitle: 'Recomendador & Filtro Inmobiliario en Barcelona',
-    badgeServerless: 'Serverless Next.js',
     portfolioSavingsLabel: 'Ahorro en cartera:',
 
     buyerProfileTitle: 'Perfil Financiero Real del Comprador',
@@ -247,9 +245,9 @@ export const translations: Record<Language, Translations> = {
       'bitpanda-criptos': 'Criptoactivos',
     },
 
+    tabProperties: 'Propiedades disponibles',
     tabSimulator: 'Simulador de Viabilidad',
-    tabWebhook: 'Probador de Webhook (/api/webhook)',
-    tabProperties: 'Pisos de Muestra en Barcelona',
+    tabProfile: 'Perfil & Cartera de Ahorro',
     tabDocs: 'Reglas Fiscales & Fórmulas',
 
     simParamsTitle: 'Parámetros de Simulación',
@@ -272,14 +270,14 @@ export const translations: Record<Language, Translations> = {
     btnBankLabel: 'Banca',
     btnBrokerLabel: 'Broker',
 
-    financingModeLabel: 'Tipo de Financiación (LTV)',
+    financingModeLabel: '% Financiado por la Hipoteca',
     financing80: '80% (Banca Estándar)',
     financing90: '90% (Con Broker)',
     financing95: '95% (Con Broker)',
     financing100: '100% (Broker - Solo Gastos)',
     scenarioComparisonTitle: 'Comparativa de Financiación: 80% vs 90% vs 95% vs 100%',
     scenarioComparisonSubtitle: 'Comprueba cómo cambia tu capital inicial requerido, los meses de ahorro y la cuota mensual si contratas a un broker hipotecario.',
-    scenarioTableLtv: 'Financiación (LTV)',
+    scenarioTableLtv: '% Financiación Hipotecaria',
     scenarioTableUpfront: 'Capital Inicial (Entrada + ITP)',
     scenarioTableShortfall: 'Faltante (Tras tus 32.629 €)',
     scenarioTableTime: 'Plazo Ahorro (2.500 €/m)',
@@ -427,7 +425,7 @@ export const translations: Record<Language, Translations> = {
     upfrontShortLabel: 'Aportación necesaria:',
     linkViewProperty: 'Ver inmueble',
 
-    tabPropsLiveTitle: 'Pisos Evaluados (Gmail & Filtro Inmobiliario)',
+    tabPropsLiveTitle: 'Propiedades disponibles (Gmail & Filtro Inmobiliario)',
     tabPropsSubtitleLive: (count) => `Se han registrado ${count} oportunidades viables desde tus alertas automáticas de Gmail en Supabase.`,
     btnRefreshProperties: 'Refrescar',
     btnRefreshing: 'Consultando...',
@@ -438,8 +436,8 @@ export const translations: Record<Language, Translations> = {
     badgeDirectViableCard: 'COMPRA VIABLE (80%)',
     badgeBrokerViableCard: (ltv) => `VIABLE CON BROKER (${ltv}%)`,
     brokerSavingsAdvantage: (ltv, months, upfront) => `🚀 Broker ${ltv}%: Compra en solo ${months} meses (Aportación reducida a ${upfront})`,
-    dbConnectedBadge: 'Supabase Conectado',
-    dbMemoryBadge: 'Almacén Temporal',
+    dbConnectedBadge: 'Base de Datos Permanente (Supabase)',
+    dbMemoryBadge: 'Sin BD Permanente (Faltan claves Supabase)',
     noPropertiesYetTitle: 'Aún no se han recibido alertas automáticas de Gmail',
     noPropertiesYetDesc: 'Tan pronto como Idealista o Fotocasa envíen un correo a tu cuenta, el conector evaluará la viabilidad y lo registrará aquí automáticamente.',
     showingSamplePropsNote: 'Mostrando pisos de muestra de Barcelona para referencia:',
@@ -474,7 +472,6 @@ export const translations: Record<Language, Translations> = {
   it: {
     appTitle: 'PropFinder BCN',
     appSubtitle: 'Consulente & Filtro Immobiliare a Barcellona',
-    badgeServerless: 'Serverless Next.js',
     portfolioSavingsLabel: 'Risparmio in portafoglio:',
 
     buyerProfileTitle: 'Profilo Finanziario Reale dell\'Acquirente',
@@ -512,9 +509,9 @@ export const translations: Record<Language, Translations> = {
       'bitpanda-criptos': 'Criptoattività',
     },
 
+    tabProperties: 'Proprietà disponibili',
     tabSimulator: 'Simulatore di Fattibilità',
-    tabWebhook: 'Tester Webhook (/api/webhook)',
-    tabProperties: 'Immobili di Esempio a Barcellona',
+    tabProfile: 'Profilo & Portafoglio Risparmi',
     tabDocs: 'Regole Fiscali & Formule',
 
     simParamsTitle: 'Parametri di Simulazione',
@@ -537,14 +534,14 @@ export const translations: Record<Language, Translations> = {
     btnBankLabel: 'Banca',
     btnBrokerLabel: 'Broker',
 
-    financingModeLabel: 'Tipo di Finanziamento (LTV)',
+    financingModeLabel: '% Finanziata dal Mutuo',
     financing80: '80% (Banca Standard)',
     financing90: '90% (Con Broker)',
     financing95: '95% (Con Broker)',
     financing100: '100% (Broker - Solo Spese)',
     scenarioComparisonTitle: 'Confronto Finanziamenti: 80% vs 90% vs 95% vs 100%',
     scenarioComparisonSubtitle: 'Scopri come cambiano il capitale iniziale necessario, i mesi di risparmio e la rata mensile se ti affidi a un broker per ottenere fino al 100%.',
-    scenarioTableLtv: 'Finanziamento (LTV)',
+    scenarioTableLtv: '% Finanziamento Mutuo',
     scenarioTableUpfront: 'Capitale Iniziale (Acconto + ITP)',
     scenarioTableShortfall: 'Mancante (Dopo i tuoi 32.629 €)',
     scenarioTableTime: 'Tempo Risparmio (2.500 €/m)',
@@ -692,7 +689,7 @@ export const translations: Record<Language, Translations> = {
     upfrontShortLabel: 'Aporto necessario:',
     linkViewProperty: 'Vedi immobile',
 
-    tabPropsLiveTitle: 'Immobili Valutati (Gmail & Filtro Immobiliare)',
+    tabPropsLiveTitle: 'Proprietà disponibili (Gmail & Filtro Immobiliare)',
     tabPropsSubtitleLive: (count) => `Registrate ${count} opportunità fattibili dai tuoi avvisi automatici Gmail su Supabase.`,
     btnRefreshProperties: 'Aggiorna',
     btnRefreshing: 'Verifica in corso...',
@@ -703,8 +700,8 @@ export const translations: Record<Language, Translations> = {
     badgeDirectViableCard: 'ACQUISTO FATTIBILE (80%)',
     badgeBrokerViableCard: (ltv) => `FATTIBILE CON BROKER (${ltv}%)`,
     brokerSavingsAdvantage: (ltv, months, upfront) => `🚀 Broker ${ltv}%: Acquisto in soli ${months} mesi (Anticipo ridotto a ${upfront})`,
-    dbConnectedBadge: 'Supabase Connesso',
-    dbMemoryBadge: 'Archivio Temporaneo',
+    dbConnectedBadge: 'Database Permanente (Supabase)',
+    dbMemoryBadge: 'Senza DB Permanente (Chiavi Supabase mancanti)',
     noPropertiesYetTitle: 'Nessun avviso ancora registrato automaticamente da Gmail',
     noPropertiesYetDesc: 'Non appena Idealista o Fotocasa invieranno una notifica alla tua email, il connettore ne valuterà la fattibilità e la registrerà qui automaticamente.',
     showingSamplePropsNote: 'Mostrando immobili di esempio a Barcellona come riferimento:',

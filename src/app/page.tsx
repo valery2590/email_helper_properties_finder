@@ -37,13 +37,26 @@ export default function Home() {
       .reduce((sum, acc) => sum + acc.amount, 0);
   }, [savingsPortfolio, activeAccountIds]);
 
+  const liquidAccountIds = useMemo(() => {
+    return savingsPortfolio
+      .filter((acc) => acc.category === 'cuenta_remunerada')
+      .map((acc) => acc.id);
+  }, [savingsPortfolio]);
+
+  const isAllSelected = activeAccountIds.length === savingsPortfolio.length;
+  const isLiquidSelected =
+    activeAccountIds.length === liquidAccountIds.length &&
+    liquidAccountIds.every((id) => activeAccountIds.includes(id));
+  const isTRSelected = activeAccountIds.length === 1 && activeAccountIds[0] === 'tr-remunerada';
+  const isZeroSelected = activeAccountIds.length === 0;
+
   const monthlySavings = 2500; // Capacidad de ahorro mensual fijada en 2.500 €
   const [loanTermYears, setLoanTermYears] = useState<number>(30);
   const [interestRate, setInterestRate] = useState<number>(2.8);
   const [showAmortizationTable, setShowAmortizationTable] = useState<boolean>(false);
   const [showPortfolioDetails, setShowPortfolioDetails] = useState<boolean>(true);
 
-  const [activeTab, setActiveTab] = useState<'simulator' | 'properties' | 'docs'>('simulator');
+  const [activeTab, setActiveTab] = useState<'properties' | 'simulator' | 'profile' | 'docs'>('properties');
 
   // Estado de pisos guardados en Supabase / Almacén (alertas de Gmail)
   const [liveProperties, setLiveProperties] = useState<SavedPropertyRecord[]>([]);
@@ -160,9 +173,6 @@ export default function Home() {
                 <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
                   {t.appTitle}
                 </span>
-                <span className="px-2 py-0.5 text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full">
-                  {t.badgeServerless}
-                </span>
               </div>
               <p className="text-xs text-slate-400">{t.appSubtitle}</p>
             </div>
@@ -199,157 +209,31 @@ export default function Home() {
               <span className="text-slate-400">{t.portfolioSavingsLabel}</span>
               <span className="font-bold text-emerald-400">{currentSavings.toLocaleString(numberLocale)} €</span>
             </div>
-            <a
-              href={`/api/webhook?lang=${lang}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800/50 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors flex items-center gap-1.5"
-            >
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              GET /api/webhook
-            </a>
           </div>
         </div>
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* Banner Perfil de Comprador */}
-        <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900/90 to-slate-850 border border-slate-800 p-6 shadow-2xl">
-          <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
-          <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-center">
-            <div className="lg:col-span-2">
-              <span className="text-xs uppercase tracking-wider font-semibold text-emerald-400">
-                {t.buyerProfileTitle}
-              </span>
-              <h1 className="text-2xl font-bold tracking-tight text-white mt-1">
-                {t.buyerProfileHeading}
-              </h1>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                {t.buyerProfileDescription.replace('{savings}', `${currentSavings.toLocaleString(numberLocale)} €`)}
-              </p>
-            </div>
-
-            <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5">
-              <div className="text-xs text-slate-400">{t.netSalaryLabel}</div>
-              <div className="text-xl font-bold text-white mt-0.5">3.250 €</div>
-              <div className="text-[11px] text-slate-500">{t.netSalarySub}</div>
-            </div>
-
-            <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5">
-              <div className="text-xs text-slate-400">{t.monthlySavingsLabel}</div>
-              <div className="text-xl font-bold text-emerald-400 mt-0.5">{monthlySavings.toLocaleString(numberLocale)} €</div>
-              <div className="text-[11px] text-emerald-500/80">{t.monthlySavingsSub}</div>
-            </div>
-
-            <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 ring-1 ring-emerald-500/30">
-              <div className="text-xs text-slate-400">{t.accumulatedSavingsLabel}</div>
-              <div className="text-xl font-bold text-emerald-300 mt-0.5">
-                {currentSavings.toLocaleString(numberLocale)} €
-              </div>
-              <div className="text-[11px] text-emerald-400/80">
-                {t.accumulatedSavingsSub(activeAccountIds.length)}
-              </div>
-            </div>
-
-            <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5">
-              <div className="text-xs text-slate-400">{t.cataloniaCapitalLabel}</div>
-              <div className="text-xl font-bold text-amber-400 mt-0.5">
-                {financingLtv === 80
-                  ? '31.5%'
-                  : financingLtv === 90
-                  ? '21.5%'
-                  : financingLtv === 95
-                  ? '16.5%'
-                  : '11.5%'}
-              </div>
-              <div className="text-[11px] text-slate-500">
-                {t.cataloniaCapitalDownPaymentSub(100 - financingLtv)}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Tarjeta Visual de Desglose de la Cartera Actual (Foto del Usuario) */}
-        <section className="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
-            <div className="flex items-center gap-2.5">
-              <span className="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </span>
-              <div>
-                <h2 className="text-sm font-bold text-white">{t.portfolioTitle}</h2>
-                <p className="text-xs text-slate-400">{t.portfolioDescription}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <div className="text-[11px] text-slate-400">{t.selectedTotalLabel}</div>
-                <div className="text-lg font-black text-emerald-400">{currentSavings.toLocaleString(numberLocale)} €</div>
-              </div>
-              <button
-                onClick={() => setShowPortfolioDetails(!showPortfolioDetails)}
-                className="text-xs px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 hover:bg-slate-800 text-slate-300 transition-colors cursor-pointer"
-              >
-                {showPortfolioDetails ? t.hideAccounts : t.showAccounts}
-              </button>
-            </div>
-          </div>
-
-          {showPortfolioDetails && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-1">
-              {savingsPortfolio.map((acc) => {
-                const isChecked = activeAccountIds.includes(acc.id);
-                const localizedLabel = t.accountLabels[acc.id] || acc.label;
-                return (
-                  <div
-                    key={acc.id}
-                    onClick={() => toggleAccount(acc.id)}
-                    className={`cursor-pointer rounded-xl border p-3.5 transition-all flex flex-col justify-between select-none ${
-                      isChecked
-                        ? 'bg-slate-950/80 border-emerald-500/40 shadow-sm shadow-emerald-500/5'
-                        : 'bg-slate-950/30 border-slate-800/60 opacity-60 hover:opacity-90'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300">
-                          {acc.institution}
-                        </span>
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => {}}
-                          className="accent-emerald-500 rounded cursor-pointer"
-                        />
-                      </div>
-                      <div className="text-xs text-slate-400 mt-1 capitalize">{localizedLabel}</div>
-                    </div>
-                    <div className="mt-3 pt-2 border-t border-slate-800/60 flex items-baseline justify-between">
-                      <span className="text-base font-extrabold text-white">
-                        {acc.amount.toLocaleString(numberLocale)} €
-                      </span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
-                        {acc.category === 'cuenta_remunerada'
-                          ? t.liquidTag
-                          : t.investmentTag}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {/* Tab Navigation */}
-        <div className="flex border-b border-slate-800 gap-2">
+        <div className="flex border-b border-slate-800 gap-2 overflow-x-auto pb-px">
+          <button
+            onClick={() => setActiveTab('properties')}
+            className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2 border-b-2 cursor-pointer whitespace-nowrap ${
+              activeTab === 'properties'
+                ? 'border-emerald-500 text-emerald-400 bg-slate-900/40'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+            {t.tabProperties}
+          </button>
+
           <button
             onClick={() => setActiveTab('simulator')}
-            className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2 border-b-2 cursor-pointer ${
+            className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2 border-b-2 cursor-pointer whitespace-nowrap ${
               activeTab === 'simulator'
                 ? 'border-emerald-500 text-emerald-400 bg-slate-900/40'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -362,21 +246,22 @@ export default function Home() {
           </button>
 
           <button
-            onClick={() => setActiveTab('properties')}
-            className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2 border-b-2 cursor-pointer ${
-              activeTab === 'properties'
+            onClick={() => setActiveTab('profile')}
+            className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2 border-b-2 cursor-pointer whitespace-nowrap ${
+              activeTab === 'profile'
                 ? 'border-emerald-500 text-emerald-400 bg-slate-900/40'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
-            {t.tabProperties}
+            {t.tabProfile}
           </button>
+
           <button
             onClick={() => setActiveTab('docs')}
-            className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2 border-b-2 cursor-pointer ${
+            className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2 border-b-2 cursor-pointer whitespace-nowrap ${
               activeTab === 'docs'
                 ? 'border-emerald-500 text-emerald-400 bg-slate-900/40'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -428,14 +313,23 @@ export default function Home() {
 
                 {/* Selector de Financiación LTV (80% vs 90% vs 95% vs 100% Broker) */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-300 flex items-center justify-between">
-                    <span>{t.financingModeLabel}</span>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="text-sm font-medium text-slate-300">
+                        {t.financingModeLabel}
+                      </label>
+                      <p className="text-[11px] text-slate-400">
+                        {lang === 'it'
+                          ? 'Quota del prezzo coperta dal mutuo (il resto è l\'acconto da anticipare)'
+                          : 'Porcentaje del valor cubierto por la hipoteca (el resto es la entrada que aportas)'}
+                      </p>
+                    </div>
                     {financingLtv > 80 && (
                       <span className="text-[10px] uppercase font-bold text-teal-300 bg-teal-500/20 px-2 py-0.5 rounded border border-teal-500/30">
                         {t.brokerAdvantageBadge}
                       </span>
                     )}
-                  </label>
+                  </div>
                   <div className="grid grid-cols-4 gap-2">
                     {[80, 90, 95, 100].map((ltv) => (
                       <button
@@ -467,35 +361,41 @@ export default function Home() {
                   <div className="grid grid-cols-4 gap-2">
                     <button
                       onClick={() => setActiveAccountIds(savingsPortfolio.map((acc) => acc.id))}
-                      className={`text-xs py-1.5 rounded-lg border font-medium transition-colors cursor-pointer ${
-                        activeAccountIds.length === savingsPortfolio.length
-                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                          : 'bg-slate-800/60 text-slate-400 border-slate-700 hover:bg-slate-800'
+                      className={`text-xs py-1.5 rounded-lg border font-medium transition-all cursor-pointer ${
+                        isAllSelected
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/60 shadow-sm shadow-emerald-500/10 font-bold ring-1 ring-emerald-500/30'
+                          : 'bg-slate-800/60 text-slate-400 border-slate-700 hover:bg-slate-800 hover:text-slate-200'
                       }`}
                     >
                       {t.presetAll}
                     </button>
                     <button
-                      onClick={() =>
-                        setActiveAccountIds(
-                          savingsPortfolio
-                            .filter((acc) => acc.category === 'cuenta_remunerada')
-                            .map((acc) => acc.id)
-                        )
-                      }
-                      className="text-xs py-1.5 rounded-lg border font-medium bg-slate-800/60 text-slate-400 border-slate-700 hover:bg-slate-800 cursor-pointer"
+                      onClick={() => setActiveAccountIds(liquidAccountIds)}
+                      className={`text-xs py-1.5 rounded-lg border font-medium transition-all cursor-pointer ${
+                        isLiquidSelected
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/60 shadow-sm shadow-emerald-500/10 font-bold ring-1 ring-emerald-500/30'
+                          : 'bg-slate-800/60 text-slate-400 border-slate-700 hover:bg-slate-800 hover:text-slate-200'
+                      }`}
                     >
                       {t.presetLiquid}
                     </button>
                     <button
                       onClick={() => setActiveAccountIds(['tr-remunerada'])}
-                      className="text-xs py-1.5 rounded-lg border font-medium bg-slate-800/60 text-slate-400 border-slate-700 hover:bg-slate-800 cursor-pointer"
+                      className={`text-xs py-1.5 rounded-lg border font-medium transition-all cursor-pointer ${
+                        isTRSelected
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/60 shadow-sm shadow-emerald-500/10 font-bold ring-1 ring-emerald-500/30'
+                          : 'bg-slate-800/60 text-slate-400 border-slate-700 hover:bg-slate-800 hover:text-slate-200'
+                      }`}
                     >
                       {t.presetTR}
                     </button>
                     <button
                       onClick={() => setActiveAccountIds([])}
-                      className="text-xs py-1.5 rounded-lg border font-medium bg-slate-800/60 text-slate-400 border-slate-700 hover:bg-slate-800 cursor-pointer"
+                      className={`text-xs py-1.5 rounded-lg border font-medium transition-all cursor-pointer ${
+                        isZeroSelected
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/60 shadow-sm shadow-emerald-500/10 font-bold ring-1 ring-emerald-500/30'
+                          : 'bg-slate-800/60 text-slate-400 border-slate-700 hover:bg-slate-800 hover:text-slate-200'
+                      }`}
                     >
                       {t.presetZero}
                     </button>
@@ -825,7 +725,7 @@ export default function Home() {
                               ? 'bg-amber-500/20 text-amber-300'
                               : 'bg-rose-500/20 text-rose-300'
                           }`}>
-                            {sc.ltvPercent}% LTV
+                            {sc.ltvPercent}% {lang === 'it' ? 'Mutuo' : 'Hipoteca'}
                           </span>
                         </div>
                         <div className="text-[11px] text-slate-400 mt-1">
@@ -889,15 +789,6 @@ export default function Home() {
                   <h2 className="text-lg font-bold text-white">
                     {t.tabPropsLiveTitle}
                   </h2>
-                  <span
-                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                      supabaseConnected
-                        ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-                        : 'bg-slate-800 text-slate-400 border-slate-700'
-                    }`}
-                  >
-                    {supabaseConnected ? t.dbConnectedBadge : t.dbMemoryBadge}
-                  </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-1">
                   {liveProperties.length > 0
@@ -1115,6 +1006,142 @@ export default function Home() {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* TAB 3: PERFIL FINANCIERO Y CARTERA DE AHORROS */}
+        {activeTab === 'profile' && (
+          <div className="space-y-6">
+            {/* Banner Perfil de Comprador */}
+            <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900/90 to-slate-850 border border-slate-800 p-6 shadow-2xl">
+              <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+              <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-center">
+                <div className="lg:col-span-2">
+                  <span className="text-xs uppercase tracking-wider font-semibold text-emerald-400">
+                    {t.buyerProfileTitle}
+                  </span>
+                  <h1 className="text-2xl font-bold tracking-tight text-white mt-1">
+                    {t.buyerProfileHeading}
+                  </h1>
+                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                    {t.buyerProfileDescription.replace('{savings}', `${currentSavings.toLocaleString(numberLocale)} €`)}
+                  </p>
+                </div>
+
+                <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5">
+                  <div className="text-xs text-slate-400">{t.netSalaryLabel}</div>
+                  <div className="text-xl font-bold text-white mt-0.5">3.250 €</div>
+                  <div className="text-[11px] text-slate-500">{t.netSalarySub}</div>
+                </div>
+
+                <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5">
+                  <div className="text-xs text-slate-400">{t.monthlySavingsLabel}</div>
+                  <div className="text-xl font-bold text-emerald-400 mt-0.5">{monthlySavings.toLocaleString(numberLocale)} €</div>
+                  <div className="text-[11px] text-emerald-500/80">{t.monthlySavingsSub}</div>
+                </div>
+
+                <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5 ring-1 ring-emerald-500/30">
+                  <div className="text-xs text-slate-400">{t.accumulatedSavingsLabel}</div>
+                  <div className="text-xl font-bold text-emerald-300 mt-0.5">
+                    {currentSavings.toLocaleString(numberLocale)} €
+                  </div>
+                  <div className="text-[11px] text-emerald-400/80">
+                    {t.accumulatedSavingsSub(activeAccountIds.length)}
+                  </div>
+                </div>
+
+                <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-3.5">
+                  <div className="text-xs text-slate-400">{t.cataloniaCapitalLabel}</div>
+                  <div className="text-xl font-bold text-amber-400 mt-0.5">
+                    {financingLtv === 80
+                      ? '31.5%'
+                      : financingLtv === 90
+                      ? '21.5%'
+                      : financingLtv === 95
+                      ? '16.5%'
+                      : '11.5%'}
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    {t.cataloniaCapitalDownPaymentSub(100 - financingLtv)}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Tarjeta Visual de Desglose de la Cartera Actual (Foto del Usuario) */}
+            <section className="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </span>
+                  <div>
+                    <h2 className="text-sm font-bold text-white">{t.portfolioTitle}</h2>
+                    <p className="text-xs text-slate-400">{t.portfolioDescription}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <div className="text-[11px] text-slate-400">{t.selectedTotalLabel}</div>
+                    <div className="text-lg font-black text-emerald-400">{currentSavings.toLocaleString(numberLocale)} €</div>
+                  </div>
+                  <button
+                    onClick={() => setShowPortfolioDetails(!showPortfolioDetails)}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 hover:bg-slate-800 text-slate-300 transition-colors cursor-pointer"
+                  >
+                    {showPortfolioDetails ? t.hideAccounts : t.showAccounts}
+                  </button>
+                </div>
+              </div>
+
+              {showPortfolioDetails && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-1">
+                  {savingsPortfolio.map((acc) => {
+                    const isChecked = activeAccountIds.includes(acc.id);
+                    const localizedLabel = t.accountLabels[acc.id] || acc.label;
+                    return (
+                      <div
+                        key={acc.id}
+                        onClick={() => toggleAccount(acc.id)}
+                        className={`cursor-pointer rounded-xl border p-3.5 transition-all flex flex-col justify-between select-none ${
+                          isChecked
+                            ? 'bg-slate-950/80 border-emerald-500/40 shadow-sm shadow-emerald-500/5'
+                            : 'bg-slate-950/30 border-slate-800/60 opacity-60 hover:opacity-90'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300">
+                              {acc.institution}
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {}}
+                              className="accent-emerald-500 rounded cursor-pointer"
+                            />
+                          </div>
+                          <div className="text-xs text-slate-400 mt-1 capitalize">{localizedLabel}</div>
+                        </div>
+                        <div className="mt-3 pt-2 border-t border-slate-800/60 flex items-baseline justify-between">
+                          <span className="text-base font-extrabold text-white">
+                            {acc.amount.toLocaleString(numberLocale)} €
+                          </span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                            {acc.category === 'cuenta_remunerada'
+                              ? t.liquidTag
+                              : t.investmentTag}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
           </div>
         )}
 

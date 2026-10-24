@@ -42,8 +42,17 @@ export interface SavedPropertyRecord {
   email_date?: string;
 }
 
-const supabaseUrl = process.env.SPBS_URL;
-const supabaseKey = process.env.SPBS_KEY || process.env.SPBS_ANON_KEY;
+const supabaseUrl =
+  process.env.SPBS_URL ||
+  process.env.SUPABASE_URL ||
+  process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+const supabaseKey =
+  process.env.SPBS_KEY ||
+  process.env.SPBS_ANON_KEY ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 let supabaseInstance: SupabaseClient | null = null;
 
