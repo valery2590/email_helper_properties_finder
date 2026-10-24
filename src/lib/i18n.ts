@@ -175,6 +175,12 @@ export interface Translations {
   noPropertiesYetDesc: string;
   showingSamplePropsNote: string;
   sourceEmailSubjectPrefix: string;
+  tabPropsSubtitleEmpty: string;
+  waitingEmailsTitle: string;
+  waitingEmailsDesc: string;
+  waitingStatusActive: string;
+  waitingCriteriaNote: string;
+  noPropertiesFiltered: string;
 
   // Documentación
   docsFiscalTitle: string;
@@ -438,6 +444,12 @@ export const translations: Record<Language, Translations> = {
     noPropertiesYetDesc: 'Tan pronto como Idealista o Fotocasa envíen un correo a tu cuenta, el conector evaluará la viabilidad y lo registrará aquí automáticamente.',
     showingSamplePropsNote: 'Mostrando pisos de muestra de Barcelona para referencia:',
     sourceEmailSubjectPrefix: 'Email:',
+    tabPropsSubtitleEmpty: 'Espacio preparado para recibir y listar en tiempo real los inmuebles viables de tus alertas de Gmail.',
+    waitingEmailsTitle: 'Bandeja lista a la espera de alertas de Gmail',
+    waitingEmailsDesc: 'Tu conector está configurado. En cuanto Idealista, Fotocasa o Habitaclia envíen un email y sea clasificado como Viable Directo (80%) o Viable con Broker (90%-100%), se registrará aquí de inmediato.',
+    waitingStatusActive: 'Webhook activo y listo para procesar correos',
+    waitingCriteriaNote: 'Filtro financiero activo: Solo se guardan inmuebles con DTI asumible (≤33%) que se ajusten a tus 32.629 € de ahorro y 2.500 €/mes.',
+    noPropertiesFiltered: 'No hay inmuebles guardados que coincidan con este filtro.',
 
     docsFiscalTitle: 'Normativa Fiscal y Bancaria (Cataluña)',
     docsFiscalLtv: '20% de Entrada: Límite estándar Loan-To-Value (LTV 80%) aplicado por las entidades bancarias en España para primera residencia.',
@@ -697,6 +709,12 @@ export const translations: Record<Language, Translations> = {
     noPropertiesYetDesc: 'Non appena Idealista o Fotocasa invieranno una notifica alla tua email, il connettore ne valuterà la fattibilità e la registrerà qui automaticamente.',
     showingSamplePropsNote: 'Mostrando immobili di esempio a Barcellona come riferimento:',
     sourceEmailSubjectPrefix: 'Email:',
+    tabPropsSubtitleEmpty: 'Spazio predisposto per ricevere ed elencare in tempo reale gli immobili fattibili dai tuoi avvisi Gmail.',
+    waitingEmailsTitle: 'Casella pronta in attesa di avvisi da Gmail',
+    waitingEmailsDesc: 'Il tuo connettore è configurato. Non appena Idealista, Fotocasa o Habitaclia inviano un\'email classificata come Fattibile Diretto (80%) o con Broker (90%-100%), verrà registrata qui immediatamente.',
+    waitingStatusActive: 'Webhook attivo e pronto a processare le email',
+    waitingCriteriaNote: 'Filtro finanziario attivo: Vengono salvati solo gli immobili con DTI sostenibile (≤33%) compatibili con i tuoi 32.629 € di risparmio e 2.500 €/mese.',
+    noPropertiesFiltered: 'Nessun immobile salvato corrisponde a questo filtro.',
 
     docsFiscalTitle: 'Normativa Fiscale e Bancaria (Catalogna)',
     docsFiscalLtv: '20% di Acconto: Limite standard Loan-To-Value (LTV 80%) applicato dagli istituti bancari in Spagna per la prima casa.',

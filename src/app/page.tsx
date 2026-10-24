@@ -43,29 +43,7 @@ export default function Home() {
   const [showAmortizationTable, setShowAmortizationTable] = useState<boolean>(false);
   const [showPortfolioDetails, setShowPortfolioDetails] = useState<boolean>(true);
 
-  // Estado del probador de Webhook
-  const [webhookMode, setWebhookMode] = useState<'json' | 'html'>('json');
-  const [webhookJsonInput, setWebhookJsonInput] = useState<string>(
-    JSON.stringify(
-      {
-        lang: 'es',
-        properties: translations.es.sampleProperties,
-        buyerProfile: {
-          currentSavings: TOTAL_INITIAL_SAVINGS,
-          monthlySavingsCapacity: 2500,
-        },
-        mortgageConfig: {
-          financingPercent: 80,
-        },
-      },
-      null,
-      2
-    )
-  );
-  const [webhookHtmlInput, setWebhookHtmlInput] = useState<string>(translations.es.sampleHtmlPayload);
-  const [webhookLoading, setWebhookLoading] = useState<boolean>(false);
-  const [webhookResponse, setWebhookResponse] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'simulator' | 'webhook' | 'properties' | 'docs'>('simulator');
+  const [activeTab, setActiveTab] = useState<'simulator' | 'properties' | 'docs'>('simulator');
 
   // Estado de pisos guardados en Supabase / Almacén (alertas de Gmail)
   const [liveProperties, setLiveProperties] = useState<SavedPropertyRecord[]>([]);
@@ -93,28 +71,9 @@ export default function Home() {
     fetchLiveProperties();
   }, []);
 
-  // Función para alternar el idioma y sincronizar los ejemplos de prueba
+  // Función para alternar el idioma
   const handleLanguageChange = (newLang: Language) => {
     setLang(newLang);
-    const newT = translations[newLang];
-    setWebhookJsonInput(
-      JSON.stringify(
-        {
-          lang: newLang,
-          properties: newT.sampleProperties,
-          buyerProfile: {
-            currentSavings,
-            monthlySavingsCapacity: monthlySavings,
-          },
-          mortgageConfig: {
-            financingPercent: financingLtv,
-          },
-        },
-        null,
-        2
-      )
-    );
-    setWebhookHtmlInput(newT.sampleHtmlPayload);
   };
 
   // Toggle de cuentas para incluir/excluir de la entrada
@@ -182,55 +141,6 @@ export default function Home() {
     );
     return { rec, hard };
   }, [monthlySavings, currentSavings, loanTermYears, interestRate, financingLtv]);
-
-  // Disparar llamada al Webhook
-  const handleTestWebhook = async () => {
-    setWebhookLoading(true);
-    setWebhookResponse(null);
-    try {
-      let body: any;
-      const headers: Record<string, string> = {};
-
-      if (webhookMode === 'json') {
-        body = webhookJsonInput;
-        headers['Content-Type'] = 'application/json';
-      } else {
-        body = JSON.stringify({
-          lang,
-          html: webhookHtmlInput,
-          buyerProfile: {
-            currentSavings,
-            monthlySavingsCapacity: monthlySavings,
-          },
-          mortgageConfig: {
-            financingPercent: financingLtv,
-          },
-        });
-        headers['Content-Type'] = 'application/json';
-      }
-
-      const res = await fetch(`/api/webhook?lang=${lang}`, {
-        method: 'POST',
-        headers,
-        body,
-      });
-
-      const data = await res.json();
-      setWebhookResponse({
-        status: res.status,
-        ok: res.ok,
-        data,
-      });
-    } catch (err: any) {
-      setWebhookResponse({
-        status: 500,
-        ok: false,
-        error: err.message,
-      });
-    } finally {
-      setWebhookLoading(false);
-    }
-  };
 
   const numberLocale = lang === 'it' ? 'it-IT' : 'es-ES';
 
@@ -450,19 +360,7 @@ export default function Home() {
             </svg>
             {t.tabSimulator}
           </button>
-          <button
-            onClick={() => setActiveTab('webhook')}
-            className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2 border-b-2 cursor-pointer ${
-              activeTab === 'webhook'
-                ? 'border-emerald-500 text-emerald-400 bg-slate-900/40'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-            {t.tabWebhook}
-          </button>
+
           <button
             onClick={() => setActiveTab('properties')}
             className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2 border-b-2 cursor-pointer ${
@@ -979,172 +877,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* TAB 2: PROBADOR DE WEBHOOK */}
-        {activeTab === 'webhook' && (
-          <div className="space-y-6">
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 space-y-6">
-              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
-                <div>
-                  <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                    {t.webhookTitle}
-                  </h2>
-                  <p className="text-xs text-slate-400 mt-1">
-                    {t.webhookSubtitle}
-                  </p>
-                </div>
 
-                <div className="flex items-center gap-2 bg-slate-950 p-1 rounded-xl border border-slate-800">
-                  <button
-                    onClick={() => setWebhookMode('json')}
-                    className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer ${
-                      webhookMode === 'json'
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {t.tabJsonProperties}
-                  </button>
-                  <button
-                    onClick={() => setWebhookMode('html')}
-                    className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors cursor-pointer ${
-                      webhookMode === 'html'
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {t.tabHtmlScraping}
-                  </button>
-                </div>
-              </div>
-
-              {/* Editor del Payload */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-xs">
-                  <label className="font-semibold text-slate-300">
-                    {webhookMode === 'json' ? t.requestBodyLabelJson : t.requestBodyLabelHtml}
-                  </label>
-                  <button
-                    onClick={() => {
-                      if (webhookMode === 'json') {
-                        setWebhookJsonInput(
-                          JSON.stringify(
-                            {
-                              lang,
-                              properties: t.sampleProperties,
-                              buyerProfile: {
-                                currentSavings,
-                                monthlySavingsCapacity: monthlySavings,
-                              },
-                              mortgageConfig: {
-                                financingPercent: financingLtv,
-                              },
-                            },
-                            null,
-                            2
-                          )
-                        );
-                      } else {
-                        setWebhookHtmlInput(t.sampleHtmlPayload);
-                      }
-                    }}
-                    className="text-emerald-400 hover:underline text-[11px] cursor-pointer"
-                  >
-                    {t.btnRestoreExample}
-                  </button>
-                </div>
-
-                {webhookMode === 'json' ? (
-                  <textarea
-                    rows={10}
-                    value={webhookJsonInput}
-                    onChange={(e) => setWebhookJsonInput(e.target.value)}
-                    className="w-full font-mono text-xs bg-slate-950 border border-slate-800 rounded-xl p-4 text-emerald-300 focus:outline-none focus:border-emerald-500"
-                  />
-                ) : (
-                  <textarea
-                    rows={10}
-                    value={webhookHtmlInput}
-                    onChange={(e) => setWebhookHtmlInput(e.target.value)}
-                    className="w-full font-mono text-xs bg-slate-950 border border-slate-800 rounded-xl p-4 text-amber-300 focus:outline-none focus:border-emerald-500"
-                  />
-                )}
-              </div>
-
-              <div className="flex justify-end">
-                <button
-                  disabled={webhookLoading}
-                  onClick={handleTestWebhook}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-extrabold text-sm hover:from-emerald-400 hover:to-teal-400 shadow-lg shadow-emerald-500/20 transition-all disabled:opacity-50 flex items-center gap-2 cursor-pointer"
-                >
-                  {webhookLoading ? (
-                    <>
-                      <svg className="animate-spin h-4 w-4 text-slate-950" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-                      </svg>
-                      {t.btnSendingWebhook}
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4 text-slate-950" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                      </svg>
-                      {t.btnSendWebhook}
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Respuesta del Webhook */}
-              {webhookResponse && (
-                <div className="space-y-4 pt-4 border-t border-slate-800">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                      {t.responseTitle(webhookResponse.status)}
-                    </h3>
-                    {webhookResponse.data?.stats && (
-                      <div className="flex items-center gap-2 text-xs font-medium">
-                        <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-                          {t.statReceived(webhookResponse.data.stats.receivedCount)}
-                        </span>
-                        <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
-                          {t.statViable(webhookResponse.data.stats.viableCount)}
-                        </span>
-                        <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300">
-                          {t.statNotViable(webhookResponse.data.stats.notViableCount)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Resumen de Notificación para Email/Telegram */}
-                  {webhookResponse.data?.notificationSummary && (
-                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-4">
-                      <div className="text-[11px] uppercase font-bold text-slate-400 tracking-wider mb-2">
-                        {t.formattedAlertTitle}
-                      </div>
-                      <pre className="text-xs font-mono text-slate-300 whitespace-pre-wrap">
-                        {webhookResponse.data.notificationSummary}
-                      </pre>
-                    </div>
-                  )}
-
-                  {/* JSON Response Raw */}
-                  <details className="bg-slate-950/80 border border-slate-800 rounded-xl p-4">
-                    <summary className="text-xs font-semibold text-slate-400 cursor-pointer hover:text-white">
-                      {t.viewFullJson}
-                    </summary>
-                    <pre className="mt-3 text-[11px] font-mono text-emerald-300/90 overflow-x-auto max-h-96">
-                      {JSON.stringify(webhookResponse.data, null, 2)}
-                    </pre>
-                  </details>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* TAB 3: PISOS EVALUADOS (GMAIL & SUPABASE) */}
         {activeTab === 'properties' && (
@@ -1154,7 +887,7 @@ export default function Home() {
                 <div className="flex items-center gap-2.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
                   <h2 className="text-lg font-bold text-white">
-                    {liveProperties.length > 0 ? t.tabPropsLiveTitle : t.samplePropsTitle}
+                    {t.tabPropsLiveTitle}
                   </h2>
                   <span
                     className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
@@ -1169,7 +902,7 @@ export default function Home() {
                 <p className="text-xs text-slate-400 mt-1">
                   {liveProperties.length > 0
                     ? t.tabPropsSubtitleLive(liveProperties.length)
-                    : t.samplePropsSubtitle(`${currentSavings.toLocaleString(numberLocale)} €`)}
+                    : t.tabPropsSubtitleEmpty}
                 </p>
               </div>
 
@@ -1184,7 +917,7 @@ export default function Home() {
                         : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    {t.filterAll} ({liveProperties.length > 0 ? liveProperties.length : t.sampleProperties.length})
+                    {t.filterAll} ({liveProperties.length})
                   </button>
                   <button
                     onClick={() => setLivePropsFilter('viable')}
@@ -1232,201 +965,156 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Aviso informativo si todavía no hay pisos registrados desde Gmail */}
-            {liveProperties.length === 0 && (
-              <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 flex items-start gap-3">
-                <span className="text-xl">ℹ️</span>
-                <div className="text-xs space-y-1">
-                  <div className="font-bold text-slate-200">{t.noPropertiesYetTitle}</div>
-                  <p className="text-slate-400 leading-relaxed">{t.noPropertiesYetDesc}</p>
-                  <div className="text-emerald-400 font-medium pt-1">{t.showingSamplePropsNote}</div>
+            {/* Espacio reservado para emails: Si aún no hay alertas registradas */}
+            {liveProperties.length === 0 ? (
+              <div className="rounded-2xl border border-slate-800/90 bg-slate-900/40 backdrop-blur-sm p-10 text-center space-y-5">
+                <div className="relative flex items-center justify-center mx-auto w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-2xl text-emerald-400 shadow-inner">
+                  <span className="animate-pulse">📬</span>
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                  </span>
+                </div>
+
+                <div className="max-w-lg mx-auto space-y-2">
+                  <h3 className="text-base font-bold text-white tracking-wide">{t.waitingEmailsTitle}</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">{t.waitingEmailsDesc}</p>
+                </div>
+
+                {/* Badges de estado */}
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-1 text-[11px]">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-950/80 border border-slate-800 text-emerald-400 font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    {t.waitingStatusActive}
+                  </span>
+                  <span className="px-3 py-1.5 rounded-full bg-slate-950/80 border border-slate-800 text-slate-400">
+                    {t.waitingCriteriaNote}
+                  </span>
                 </div>
               </div>
-            )}
-
-            {/* Grid de Pisos: si hay pisos de Gmail/Supabase se muestran los reales, si no los de muestra */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {liveProperties.length > 0 ? (
-                liveProperties
-                  .filter((p) => {
-                    if (livePropsFilter === 'viable') return p.status === 'VIABLE';
-                    if (livePropsFilter === 'broker_viable') return p.is_broker_viable;
-                    return true;
-                  })
-                  .map((prop) => (
-                    <div
-                      key={prop.id}
-                      className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 flex flex-col justify-between space-y-4 hover:border-slate-700 transition-all shadow-lg"
-                    >
-                      <div className="space-y-2">
-                        {prop.email_subject && (
-                          <div className="flex items-center gap-2 text-[11px] text-slate-400 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800/80">
-                            <span className="text-emerald-400 font-bold">{t.badgeFromGmail}:</span>
-                            <span className="truncate">{prop.email_subject}</span>
-                          </div>
-                        )}
-
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                              {prop.district || 'Barcelona'}
-                            </span>
-                            <h3 className="text-base font-bold text-white mt-1.5">{prop.title}</h3>
-                          </div>
-                          <span
-                            className={`text-xs px-2.5 py-1 rounded-full font-extrabold uppercase ${
-                              prop.status === 'VIABLE'
-                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                : prop.is_broker_viable
-                                ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30'
-                                : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                            }`}
-                          >
-                            {prop.status === 'VIABLE'
-                              ? t.badgeDirectViableCard
-                              : prop.is_broker_viable
-                              ? t.badgeBrokerViableCard(prop.best_broker_ltv || 95)
-                              : t.statusModerateRisk}
-                          </span>
-                        </div>
-                        {prop.description && (
-                          <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{prop.description}</p>
-                        )}
-                      </div>
-
-                      {/* Métricas Principales */}
-                      <div className="grid grid-cols-3 gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800/80 text-xs">
-                        <div>
-                          <div className="text-slate-500 text-[10px]">{t.priceLabel}</div>
-                          <div className="font-bold text-white mt-0.5">{prop.price.toLocaleString(numberLocale)} €</div>
-                        </div>
-                        <div>
-                          <div className="text-slate-500 text-[10px]">{t.cuotaLabel} (80%)</div>
-                          <div className="font-bold text-emerald-400 mt-0.5">{prop.monthly_payment_80.toLocaleString(numberLocale)} €</div>
-                        </div>
-                        <div>
-                          <div className="text-slate-500 text-[10px]">{t.dtiShortLabel}</div>
-                          <div className={`font-bold mt-0.5 ${prop.dti_percent_80 <= 33 ? 'text-emerald-400' : 'text-amber-300'}`}>
-                            {prop.dti_percent_80}%
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Destacado de Ventaja con Broker si aplica */}
-                      {prop.is_broker_viable && prop.best_broker_ltv && prop.months_needed_broker !== undefined && (
-                        <div className="bg-gradient-to-r from-teal-950/40 to-emerald-950/30 border border-teal-500/30 rounded-xl p-2.5 text-xs text-teal-300 flex items-center justify-between">
-                          <span>
-                            {t.brokerSavingsAdvantage(
-                              prop.best_broker_ltv,
-                              prop.months_needed_broker,
-                              `${prop.total_upfront_broker?.toLocaleString(numberLocale)} €`
+            ) : (
+              /* Grid exclusivamente con los inmuebles reales registrados desde Gmail / Supabase */
+              <div className="space-y-4">
+                {liveProperties.filter((p) => {
+                  if (livePropsFilter === 'viable') return p.status === 'VIABLE';
+                  if (livePropsFilter === 'broker_viable') return p.is_broker_viable;
+                  return true;
+                }).length === 0 ? (
+                  <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-8 text-center text-xs text-slate-400">
+                    {t.noPropertiesFiltered}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {liveProperties
+                      .filter((p) => {
+                        if (livePropsFilter === 'viable') return p.status === 'VIABLE';
+                        if (livePropsFilter === 'broker_viable') return p.is_broker_viable;
+                        return true;
+                      })
+                      .map((prop) => (
+                        <div
+                          key={prop.id}
+                          className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 flex flex-col justify-between space-y-4 hover:border-slate-700 transition-all shadow-lg"
+                        >
+                          <div className="space-y-2">
+                            {prop.email_subject && (
+                              <div className="flex items-center gap-2 text-[11px] text-slate-400 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800/80">
+                                <span className="text-emerald-400 font-bold">{t.badgeFromGmail}:</span>
+                                <span className="truncate">{prop.email_subject}</span>
+                              </div>
                             )}
-                          </span>
-                          <span className="font-bold text-white bg-teal-500/20 px-2 py-0.5 rounded text-[11px]">
-                            {prop.monthly_payment_broker?.toLocaleString(numberLocale)} €{t.perMonth}
-                          </span>
-                        </div>
-                      )}
 
-                      <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs text-slate-400">
-                        <div>
-                          {t.upfrontShortLabel} <strong className="text-white">{prop.total_upfront_80.toLocaleString(numberLocale)} €</strong>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-emerald-400 font-medium">
-                            {prop.months_needed_80 === 0 ? t.timeReadyNow : t.monthsCount(prop.months_needed_80)}
-                          </span>
-                          {prop.url && (
-                            <a
-                              href={prop.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-teal-400 hover:text-teal-300 hover:underline flex items-center gap-1"
-                            >
-                              <span>{t.linkViewProperty}</span>
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                              </svg>
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))
-              ) : (
-                /* Fallback a los pisos de muestra si aún no hay registros de Gmail */
-                t.sampleProperties.map((prop) => {
-                  const report = evaluatePropertyViability(
-                    prop,
-                    {
-                      currentSavings,
-                      monthlySavingsCapacity: monthlySavings,
-                    },
-                    {
-                      financingPercent: financingLtv,
-                    },
-                    lang
-                  );
-                  return (
-                    <div
-                      key={prop.id}
-                      className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 flex flex-col justify-between space-y-4 hover:border-slate-700 transition-all"
-                    >
-                      <div>
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                              {prop.district}
-                            </span>
-                            <h3 className="text-base font-bold text-white mt-1.5">{prop.title}</h3>
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                                  {prop.district || 'Barcelona'}
+                                </span>
+                                <h3 className="text-base font-bold text-white mt-1.5">{prop.title}</h3>
+                              </div>
+                              <span
+                                className={`text-xs px-2.5 py-1 rounded-full font-extrabold uppercase ${
+                                  prop.status === 'VIABLE'
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                    : prop.is_broker_viable
+                                    ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30'
+                                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                }`}
+                              >
+                                {prop.status === 'VIABLE'
+                                  ? t.badgeDirectViableCard
+                                  : prop.is_broker_viable
+                                  ? t.badgeBrokerViableCard(prop.best_broker_ltv || 95)
+                                  : t.statusModerateRisk}
+                              </span>
+                            </div>
+                            {prop.description && (
+                              <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{prop.description}</p>
+                            )}
                           </div>
-                          <span
-                            className={`text-xs px-2.5 py-1 rounded-full font-extrabold uppercase ${
-                              report.status === 'VIABLE'
-                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                : report.status === 'MODERATE_RISK'
-                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                            }`}
-                          >
-                            {report.status === 'VIABLE'
-                              ? t.statusViable
-                              : report.status === 'MODERATE_RISK'
-                              ? t.statusModerateRisk
-                              : t.statusNotViable}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-400 mt-2 line-clamp-2">{prop.description}</p>
-                      </div>
 
-                      <div className="grid grid-cols-3 gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800/80 text-xs">
-                        <div>
-                          <div className="text-slate-500 text-[10px]">{t.priceLabel}</div>
-                          <div className="font-bold text-white mt-0.5">{prop.price.toLocaleString(numberLocale)} €</div>
-                        </div>
-                        <div>
-                          <div className="text-slate-500 text-[10px]">{t.cuotaLabel} ({financingLtv}%)</div>
-                          <div className="font-bold text-emerald-400 mt-0.5">{report.monthlyMortgagePayment.toLocaleString(numberLocale)} €</div>
-                        </div>
-                        <div>
-                          <div className="text-slate-500 text-[10px]">{t.dtiShortLabel}</div>
-                          <div className="font-bold text-amber-300 mt-0.5">{report.dtiPercent}%</div>
-                        </div>
-                      </div>
+                          {/* Métricas Principales */}
+                          <div className="grid grid-cols-3 gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800/80 text-xs">
+                            <div>
+                              <div className="text-slate-500 text-[10px]">{t.priceLabel}</div>
+                              <div className="font-bold text-white mt-0.5">{prop.price.toLocaleString(numberLocale)} €</div>
+                            </div>
+                            <div>
+                              <div className="text-slate-500 text-[10px]">{t.cuotaLabel} (80%)</div>
+                              <div className="font-bold text-emerald-400 mt-0.5">{prop.monthly_payment_80.toLocaleString(numberLocale)} €</div>
+                            </div>
+                            <div>
+                              <div className="text-slate-500 text-[10px]">{t.dtiShortLabel}</div>
+                              <div className={`font-bold mt-0.5 ${prop.dti_percent_80 <= 33 ? 'text-emerald-400' : 'text-amber-300'}`}>
+                                {prop.dti_percent_80}%
+                              </div>
+                            </div>
+                          </div>
 
-                      <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs text-slate-400">
-                        <div>
-                          {t.upfrontShortLabel} <strong className="text-white">{report.totalUpfrontRequired.toLocaleString(numberLocale)} €</strong>
+                          {/* Destacado de Ventaja con Broker si aplica */}
+                          {prop.is_broker_viable && prop.best_broker_ltv && prop.months_needed_broker !== undefined && (
+                            <div className="bg-gradient-to-r from-teal-950/40 to-emerald-950/30 border border-teal-500/30 rounded-xl p-2.5 text-xs text-teal-300 flex items-center justify-between">
+                              <span>
+                                {t.brokerSavingsAdvantage(
+                                  prop.best_broker_ltv,
+                                  prop.months_needed_broker,
+                                  `${prop.total_upfront_broker?.toLocaleString(numberLocale)} €`
+                                )}
+                              </span>
+                              <span className="font-bold text-white bg-teal-500/20 px-2 py-0.5 rounded text-[11px]">
+                                {prop.monthly_payment_broker?.toLocaleString(numberLocale)} €{t.perMonth}
+                              </span>
+                            </div>
+                          )}
+
+                          <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs text-slate-400">
+                            <div>
+                              {t.upfrontShortLabel} <strong className="text-white">{prop.total_upfront_80.toLocaleString(numberLocale)} €</strong>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-emerald-400 font-medium">
+                                {prop.months_needed_80 === 0 ? t.timeReadyNow : t.monthsCount(prop.months_needed_80)}
+                              </span>
+                              {prop.url && (
+                                <a
+                                  href={prop.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-teal-400 hover:text-teal-300 hover:underline flex items-center gap-1"
+                                >
+                                  <span>{t.linkViewProperty}</span>
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                  </svg>
+                                </a>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-emerald-400 font-medium">
-                          {report.savingsTimeline.isReadyNow ? t.timeReadyNow : t.monthsCount(report.savingsTimeline.monthsNeeded)}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
