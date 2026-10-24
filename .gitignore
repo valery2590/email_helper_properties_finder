@@ -40,6 +40,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# scripts and google apps script
+# scripts, sql and google apps script
 *.gs
 scripts/*.gs
+*.sql
+scripts/*.sql
