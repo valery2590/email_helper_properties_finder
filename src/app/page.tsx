@@ -57,6 +57,7 @@ export default function Home() {
   const [showPortfolioDetails, setShowPortfolioDetails] = useState<boolean>(true);
 
   const [activeTab, setActiveTab] = useState<'properties' | 'simulator' | 'profile' | 'docs'>('properties');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
   // Estado de pisos guardados en Supabase / Almacén (alertas de Gmail)
   const [liveProperties, setLiveProperties] = useState<SavedPropertyRecord[]>([]);
@@ -157,6 +158,56 @@ export default function Home() {
 
   const numberLocale = lang === 'it' ? 'it-IT' : 'es-ES';
 
+  const navTabs: {
+    id: 'properties' | 'simulator' | 'profile' | 'docs';
+    label: string;
+    desc: string;
+    icon: React.ReactNode;
+  }[] = [
+    {
+      id: 'properties',
+      label: t.tabProperties,
+      desc: lang === 'it' ? 'Avvisi Gmail & opportunità' : 'Alertas Gmail & oportunidades',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        </svg>
+      ),
+    },
+    {
+      id: 'simulator',
+      label: t.tabSimulator,
+      desc: lang === 'it' ? 'Simulatore mutuo 80%-100%' : 'Simulador hipoteca 80%-100%',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'profile',
+      label: t.tabProfile,
+      desc: lang === 'it' ? '32.629 € e stipendio 3.250 €' : '32.629 € y sueldo 3.250 €',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'docs',
+      label: t.tabDocs,
+      desc: lang === 'it' ? '10% ITP Catalogna, formule' : '10% ITP Cataluña, fórmulas',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
+    },
+  ];
+
+  const currentTab = navTabs.find((item) => item.id === activeTab) || navTabs[0];
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {/* Header / Navbar */}
@@ -209,69 +260,125 @@ export default function Home() {
               <span className="text-slate-400">{t.portfolioSavingsLabel}</span>
               <span className="font-bold text-emerald-400">{currentSavings.toLocaleString(numberLocale)} €</span>
             </div>
+
+            {/* Botón Hamburguesa para Móvil */}
+            <button
+              onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+              aria-label="Abrir menú de navegación"
+              className={`sm:hidden p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-center ${
+                isMobileMenuOpen
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-500/20'
+                  : 'bg-slate-900 text-slate-300 border-slate-800 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              {isMobileMenuOpen ? (
+                <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
+            </button>
           </div>
         </div>
+
+        {/* Menú Desplegable Móvil */}
+        {isMobileMenuOpen && (
+          <div className="sm:hidden border-t border-slate-800/80 bg-slate-950/98 backdrop-blur-xl px-4 py-3 space-y-2 shadow-2xl">
+            <div className="flex items-center justify-between px-1 pb-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                {lang === 'it' ? 'Pannelli di Navigazione' : 'Pestañas de Navegación'}
+              </span>
+              <span className="text-xs font-semibold text-emerald-400">
+                {currentSavings.toLocaleString(numberLocale)} € ({lang === 'it' ? 'risparmi' : 'ahorros'})
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-1.5">
+              {navTabs.map((tab) => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      setActiveTab(tab.id);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/10 border border-emerald-500/40 text-emerald-300 shadow-sm shadow-emerald-500/10'
+                        : 'bg-slate-900/60 border border-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${isActive ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'}`}>
+                        {tab.icon}
+                      </div>
+                      <div>
+                        <div className="font-bold text-sm text-white">{tab.label}</div>
+                        <div className="text-[11px] text-slate-400">{tab.desc}</div>
+                      </div>
+                    </div>
+                    {isActive && (
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400"></span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Tab Navigation */}
-        <div className="flex border-b border-slate-800 gap-2 overflow-x-auto pb-px">
+        {/* Mobile: Indicador de Pestaña Activa con botón para cambiar */}
+        <div className="sm:hidden">
           <button
-            onClick={() => setActiveTab('properties')}
-            className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2 border-b-2 cursor-pointer whitespace-nowrap ${
-              activeTab === 'properties'
-                ? 'border-emerald-500 text-emerald-400 bg-slate-900/40'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
+            onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+            className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 p-3 rounded-2xl shadow-lg cursor-pointer hover:border-slate-700 transition-all active:scale-[0.99]"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-            </svg>
-            {t.tabProperties}
-          </button>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                {currentTab.icon}
+              </div>
+              <div className="text-left">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                  {lang === 'it' ? 'Pannello attivo' : 'Pestaña activa'}
+                </span>
+                <span className="text-sm font-bold text-white block">
+                  {currentTab.label}
+                </span>
+              </div>
+            </div>
 
-          <button
-            onClick={() => setActiveTab('simulator')}
-            className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2 border-b-2 cursor-pointer whitespace-nowrap ${
-              activeTab === 'simulator'
-                ? 'border-emerald-500 text-emerald-400 bg-slate-900/40'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-            </svg>
-            {t.tabSimulator}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 text-xs font-semibold text-emerald-400 border border-slate-700/80">
+              <span>{lang === 'it' ? 'Menu' : 'Cambiar'}</span>
+              <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${isMobileMenuOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
           </button>
+        </div>
 
-          <button
-            onClick={() => setActiveTab('profile')}
-            className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2 border-b-2 cursor-pointer whitespace-nowrap ${
-              activeTab === 'profile'
-                ? 'border-emerald-500 text-emerald-400 bg-slate-900/40'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-            {t.tabProfile}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('docs')}
-            className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2 border-b-2 cursor-pointer whitespace-nowrap ${
-              activeTab === 'docs'
-                ? 'border-emerald-500 text-emerald-400 bg-slate-900/40'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            {t.tabDocs}
-          </button>
+        {/* Desktop: Tab Navigation tradicional */}
+        <div className="hidden sm:flex border-b border-slate-800 gap-2 pb-px">
+          {navTabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-colors flex items-center gap-2 border-b-2 cursor-pointer whitespace-nowrap ${
+                activeTab === tab.id
+                  ? 'border-emerald-500 text-emerald-400 bg-slate-900/40'
+                  : 'border-transparent text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {/* TAB 1: SIMULADOR DE VIABILIDAD */}
