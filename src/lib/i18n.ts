@@ -185,6 +185,11 @@ export interface Translations {
   waitingStatusActive: string;
   waitingCriteriaNote: string;
   noPropertiesFiltered: string;
+  sortByLabel: string;
+  sortByPriceAsc: string;
+  sortByPriceDesc: string;
+  sortBySavingsAsc: string;
+  sortByLocationAsc: string;
 
   // Documentación
   docsFiscalTitle: string;
@@ -458,6 +463,11 @@ export const translations: Record<Language, Translations> = {
     waitingStatusActive: 'Webhook activo y listo para procesar correos',
     waitingCriteriaNote: 'Filtro financiero activo: Solo se guardan inmuebles con DTI asumible (≤33%) que se ajusten a tus 32.629 € de ahorro y 2.500 €/mes.',
     noPropertiesFiltered: 'No hay inmuebles guardados que coincidan con este filtro.',
+    sortByLabel: 'Ordenar por:',
+    sortByPriceAsc: 'Precio: menor a mayor',
+    sortByPriceDesc: 'Precio: mayor a menor',
+    sortBySavingsAsc: 'Menor ahorro necesario',
+    sortByLocationAsc: 'Localización (A-Z)',
 
     docsFiscalTitle: 'Normativa Fiscal y Bancaria (Cataluña)',
     docsFiscalLtv: '20% de Entrada: Límite estándar Loan-To-Value (LTV 80%) aplicado por las entidades bancarias en España para primera residencia.',
@@ -727,6 +737,11 @@ export const translations: Record<Language, Translations> = {
     waitingStatusActive: 'Webhook attivo e pronto a processare le email',
     waitingCriteriaNote: 'Filtro finanziario attivo: Vengono salvati solo gli immobili con DTI sostenibile (≤33%) compatibili con i tuoi 32.629 € di risparmio e 2.500 €/mese.',
     noPropertiesFiltered: 'Nessun immobile salvato corrisponde a questo filtro.',
+    sortByLabel: 'Ordina per:',
+    sortByPriceAsc: 'Prezzo: crescente',
+    sortByPriceDesc: 'Prezzo: decrescente',
+    sortBySavingsAsc: 'Meno risparmio necessario',
+    sortByLocationAsc: 'Località (A-Z)',
 
     docsFiscalTitle: 'Normativa Fiscale e Bancaria (Catalogna)',
     docsFiscalLtv: '20% di Acconto: Limite standard Loan-To-Value (LTV 80%) applicato dagli istituti bancari in Spagna per la prima casa.',

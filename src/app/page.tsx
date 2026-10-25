@@ -64,6 +64,7 @@ export default function Home() {
   const [liveProperties, setLiveProperties] = useState<SavedPropertyRecord[]>([]);
   const [loadingLiveProps, setLoadingLiveProps] = useState<boolean>(false);
   const [livePropsFilter, setLivePropsFilter] = useState<'all' | 'viable' | 'broker_viable' | 'favorites'>('all');
+  const [livePropsSort, setLivePropsSort] = useState<'price-asc' | 'price-desc' | 'savings-asc' | 'location-asc'>('price-asc');
   const [supabaseConnected, setSupabaseConnected] = useState<boolean>(false);
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [deletedKeys, setDeletedKeys] = useState<string[]>([]);
@@ -272,7 +273,7 @@ export default function Home() {
     });
   }, [liveProperties, deletedKeys]);
 
-  // Lista de propiedades filtrada y con los FAVORITOS SIEMPRE PRIMEROS
+  // Lista de propiedades filtrada y con ordenación seleccionada (manteniendo FAVORITOS SIEMPRE PRIMEROS)
   const displayedProperties = useMemo(() => {
     const filtered = activeLiveProperties.filter((p) => {
       if (livePropsFilter === 'viable') return p.status === 'VIABLE';
@@ -281,16 +282,42 @@ export default function Home() {
       return true;
     });
 
-    // Favoritos SIEMPRE primeros
+    // Favoritos SIEMPRE primeros, y orden secundario por criterio seleccionado
     return [...filtered].sort((a, b) => {
+      // 1. Favoritos al frente
       const aFav = isPropertyFavorite(a) ? 1 : 0;
       const bFav = isPropertyFavorite(b) ? 1 : 0;
       if (aFav !== bFav) {
         return bFav - aFav;
       }
+
+      // 2. Criterio de ordenación activo
+      if (livePropsSort === 'price-asc') {
+        return (a.price || 0) - (b.price || 0);
+      }
+      if (livePropsSort === 'price-desc') {
+        return (b.price || 0) - (a.price || 0);
+      }
+      if (livePropsSort === 'savings-asc') {
+        // Ordenar estrictamente por meses de ahorro necesarios y aportación requerida (total_upfront_80)
+        const aMonths = a.months_needed_80 !== undefined && a.months_needed_80 !== null ? a.months_needed_80 : 9999;
+        const bMonths = b.months_needed_80 !== undefined && b.months_needed_80 !== null ? b.months_needed_80 : 9999;
+        if (aMonths !== bMonths) {
+          return aMonths - bMonths;
+        }
+        return (a.total_upfront_80 || 0) - (b.total_upfront_80 || 0);
+      }
+      if (livePropsSort === 'location-asc') {
+        const locA = (a.district || a.location || 'Barcelona').trim();
+        const locB = (b.district || b.location || 'Barcelona').trim();
+        const cmp = locA.localeCompare(locB, lang === 'it' ? 'it' : 'es', { sensitivity: 'base' });
+        if (cmp !== 0) return cmp;
+        return (a.price || 0) - (b.price || 0);
+      }
+
       return 0;
     });
-  }, [activeLiveProperties, livePropsFilter, favoriteIds, isPropertyFavorite]);
+  }, [activeLiveProperties, livePropsFilter, livePropsSort, favoriteIds, isPropertyFavorite, lang]);
 
   const fetchLiveProperties = async () => {
     setLoadingLiveProps(true);
@@ -1252,6 +1279,72 @@ export default function Home() {
             ) : (
               /* Grid exclusivamente con los inmuebles reales registrados desde Gmail / Supabase (Favoritos PRIMEROS) */
               <div className="space-y-4">
+                {/* Barra de Ordenación: Precio, Ahorro o Localización */}
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/60 border border-slate-800/80 px-4 py-2.5 rounded-2xl text-xs backdrop-blur-sm">
+                  <div className="flex items-center gap-2 text-slate-300 font-semibold">
+                    <span className="p-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                      </svg>
+                    </span>
+                    <span>{t.sortByLabel}</span>
+                  </div>
+
+                  <div className="flex items-center flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setLivePropsSort('price-asc')}
+                      className={`px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        livePropsSort === 'price-asc'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-500/10 ring-1 ring-emerald-500/30'
+                          : 'bg-slate-950/80 text-slate-400 hover:text-white border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <span>💶</span>
+                      <span>{t.sortByPriceAsc}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setLivePropsSort('price-desc')}
+                      className={`px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        livePropsSort === 'price-desc'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-500/10 ring-1 ring-emerald-500/30'
+                          : 'bg-slate-950/80 text-slate-400 hover:text-white border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <span>📈</span>
+                      <span>{t.sortByPriceDesc}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setLivePropsSort('savings-asc')}
+                      className={`px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        livePropsSort === 'savings-asc'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-500/10 ring-1 ring-emerald-500/30'
+                          : 'bg-slate-950/80 text-slate-400 hover:text-white border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <span>🎯</span>
+                      <span>{t.sortBySavingsAsc}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setLivePropsSort('location-asc')}
+                      className={`px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        livePropsSort === 'location-asc'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-500/10 ring-1 ring-emerald-500/30'
+                          : 'bg-slate-950/80 text-slate-400 hover:text-white border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <span>📍</span>
+                      <span>{t.sortByLocationAsc}</span>
+                    </button>
+                  </div>
+                </div>
+
                 {displayedProperties.length === 0 ? (
                   <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-8 text-center text-xs text-slate-400">
                     {t.noPropertiesFiltered}

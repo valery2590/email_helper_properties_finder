@@ -47,7 +47,8 @@ export function isUnwantedProperty(text?: string | null): boolean {
     lower.includes('ocupantes') ||
     lower.includes('cesión de remate') ||
     lower.includes('cesion de remate') ||
-    lower.includes('adjudicación bancaria')
+    lower.includes('adjudicación bancaria') ||
+    lower.includes('ocupada ilegalmente')
   ) {
     return true;
   }

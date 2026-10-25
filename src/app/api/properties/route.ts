@@ -31,17 +31,20 @@ export async function GET(request: NextRequest) {
         return true;
       })
       .map((p) => {
-        let district = p.district || 'Barcelona';
+        let district = p.district && p.district !== 'Barcelona' && p.district !== 'Indefinido' ? p.district : 'Barcelona';
         let title = p.title;
 
-        // Detectar municipio si p.district es genérico o se encuentra en la descripción
-        if (p.description) {
-          for (const town of knownTowns) {
-            if (new RegExp(`\\b${town}\\b`, 'i').test(p.description)) {
-              district = town;
-              break;
-            }
+        // Detectar municipio específico en el título, descripción o URL (priorizando pueblos concretos sobre Barcelona)
+        const searchContext = `${p.title || ''} ${p.description || ''} ${p.url || ''}`;
+        for (const town of knownTowns) {
+          if (town !== 'Barcelona' && new RegExp(`\\b${town}\\b`, 'i').test(searchContext)) {
+            district = town;
+            break;
           }
+        }
+
+        // Extraer título real si el título actual es genérico (ej. "Uno de tus favoritos vuelve a estar publicado")
+        if (p.description) {
           // Extraer título real si el título actual es genérico (ej. "Uno de tus favoritos vuelve a estar publicado")
           if (
             title.includes('favoritos') ||
