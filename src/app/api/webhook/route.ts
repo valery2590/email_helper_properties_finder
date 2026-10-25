@@ -195,6 +195,34 @@ export async function POST(request: NextRequest) {
       parsedBody = await request.text();
     }
 
+    const metadata = typeof parsedBody === 'object' && parsedBody !== null && 'metadata' in parsedBody
+      ? (parsedBody as { metadata?: { subject?: string; from?: string } }).metadata
+      : undefined;
+
+    const subjectStr = (metadata?.subject || '').toLowerCase();
+    const rawContentStr = typeof parsedBody === 'string' ? parsedBody.toLowerCase() : JSON.stringify(parsedBody).toLowerCase();
+
+    // Regla de oro: omitir de inmediato si el asunto o cuerpo indica que no está publicado
+    if (
+      subjectStr.includes('no está publicado') ||
+      subjectStr.includes('no esta publicado') ||
+      subjectStr.includes('ya no está') ||
+      subjectStr.includes('ya no esta') ||
+      subjectStr.includes('despublicado') ||
+      rawContentStr.includes('este inmueble ya no está publicado') ||
+      rawContentStr.includes('uno de tus favoritos ya no está publicado') ||
+      rawContentStr.includes('ya no está disponible') ||
+      rawContentStr.includes('ya no esta disponible')
+    ) {
+      return NextResponse.json({
+        success: true,
+        message: 'Omitido: inmueble despublicado o retirado',
+        omitted: true,
+        count: 0,
+        results: [],
+      });
+    }
+
     const { properties, buyerOverrides, mortgageOverrides, filterOnlyViable } =
       extractPropertiesFromPayload(parsedBody, contentType);
 
@@ -203,7 +231,33 @@ export async function POST(request: NextRequest) {
       (typeof parsedBody === 'object' && parsedBody !== null && 'lang' in parsedBody ? (parsedBody as { lang?: 'es' | 'it' }).lang : 'es') ||
       'es';
 
-    if (!properties || properties.length === 0) {
+    // Filtrar y asegurar URL en cada inmueble recibido
+    const sanitizedProperties = (properties || [])
+      .filter((p) => {
+        const t = (p.title || '').toLowerCase();
+        const d = (p.description || '').toLowerCase();
+        return (
+          !t.includes('no está publicado') &&
+          !t.includes('no esta publicado') &&
+          !t.includes('ya no está') &&
+          !t.includes('ya no esta') &&
+          !t.includes('despublicado') &&
+          !d.includes('ya no está publicado') &&
+          !d.includes('ya no esta publicado')
+        );
+      })
+      .map((p) => {
+        const dist = p.district || p.location || 'barcelona';
+        const distSlug = dist.toLowerCase().replace(/[\s\']/g, '-');
+        return {
+          ...p,
+          url: p.url && p.url.startsWith('http')
+            ? p.url
+            : `https://www.idealista.com/buscar/venta-viviendas/${encodeURIComponent(distSlug)}/?precio-hasta=${p.price}`,
+        };
+      });
+
+    if (sanitizedProperties.length === 0) {
       return NextResponse.json(
         {
           success: false,
@@ -227,7 +281,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Evaluación financiera de cada inmueble con los parámetros establecidos
-    const reports: FinancialViabilityReport[] = properties.map((prop) =>
+    const reports: FinancialViabilityReport[] = sanitizedProperties.map((prop) =>
       evaluatePropertyViability(prop, buyerOverrides, mortgageOverrides, lang)
     );
 
@@ -274,25 +328,6 @@ export async function POST(request: NextRequest) {
     const brokerFinancingScenarios = properties.length > 0
       ? calculateFinancingScenarios(properties[0].price, activeBuyerProfile, activeMortgageConfig, lang)
       : [];
-
-    const metadata = typeof parsedBody === 'object' && parsedBody !== null && 'metadata' in parsedBody
-      ? (parsedBody as { metadata?: { subject?: string; from?: string } }).metadata
-      : undefined;
-
-    const subjectStr = (metadata?.subject || '').toLowerCase();
-    if (
-      subjectStr.includes('no está publicado') ||
-      subjectStr.includes('no esta publicado') ||
-      subjectStr.includes('ya no está') ||
-      subjectStr.includes('ya no esta')
-    ) {
-      return NextResponse.json({
-        success: true,
-        message: 'Omitido: inmueble despublicado o retirado',
-        count: 0,
-        results: [],
-      });
-    }
 
     // Registrar en Supabase y almacén (omitiendo despublicados)
     const validReports = filteredReports.filter((r) => {

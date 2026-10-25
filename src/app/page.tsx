@@ -65,6 +65,28 @@ export default function Home() {
   const [livePropsFilter, setLivePropsFilter] = useState<'all' | 'viable' | 'broker_viable'>('all');
   const [supabaseConnected, setSupabaseConnected] = useState<boolean>(false);
 
+  // Filtrar estrictamente cualquier propiedad que contenga "no está publicado" o que esté despublicada
+  const activeLiveProperties = useMemo(() => {
+    return liveProperties.filter((p) => {
+      const t = (p.title || '').toLowerCase();
+      const s = (p.email_subject || '').toLowerCase();
+      const d = (p.description || '').toLowerCase();
+      return (
+        !t.includes('no está publicado') &&
+        !t.includes('no esta publicado') &&
+        !t.includes('ya no está') &&
+        !t.includes('ya no esta') &&
+        !t.includes('despublicado') &&
+        !s.includes('no está publicado') &&
+        !s.includes('no esta publicado') &&
+        !s.includes('ya no está') &&
+        !s.includes('ya no esta') &&
+        !d.includes('ya no está publicado') &&
+        !d.includes('ya no esta publicado')
+      );
+    });
+  }, [liveProperties]);
+
   const fetchLiveProperties = async () => {
     setLoadingLiveProps(true);
     try {
@@ -898,8 +920,8 @@ export default function Home() {
                   </h2>
                 </div>
                 <p className="text-xs text-slate-400 mt-1">
-                  {liveProperties.length > 0
-                    ? t.tabPropsSubtitleLive(liveProperties.length)
+                  {activeLiveProperties.length > 0
+                    ? t.tabPropsSubtitleLive(activeLiveProperties.length)
                     : t.tabPropsSubtitleEmpty}
                 </p>
               </div>
@@ -915,7 +937,7 @@ export default function Home() {
                         : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    {t.filterAll} ({liveProperties.length})
+                    {t.filterAll} ({activeLiveProperties.length})
                   </button>
                   <button
                     onClick={() => setLivePropsFilter('viable')}
@@ -964,7 +986,7 @@ export default function Home() {
             </div>
 
             {/* Espacio reservado para emails: Si aún no hay alertas registradas */}
-            {liveProperties.length === 0 ? (
+            {activeLiveProperties.length === 0 ? (
               <div className="rounded-2xl border border-slate-800/90 bg-slate-900/40 backdrop-blur-sm p-10 text-center space-y-5">
                 <div className="relative flex items-center justify-center mx-auto w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-2xl text-emerald-400 shadow-inner">
                   <span className="animate-pulse">📬</span>
@@ -993,7 +1015,7 @@ export default function Home() {
             ) : (
               /* Grid exclusivamente con los inmuebles reales registrados desde Gmail / Supabase */
               <div className="space-y-4">
-                {liveProperties.filter((p) => {
+                {activeLiveProperties.filter((p) => {
                   if (livePropsFilter === 'viable') return p.status === 'VIABLE';
                   if (livePropsFilter === 'broker_viable') return p.is_broker_viable;
                   return true;
@@ -1003,112 +1025,136 @@ export default function Home() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {liveProperties
+                    {activeLiveProperties
                       .filter((p) => {
                         if (livePropsFilter === 'viable') return p.status === 'VIABLE';
                         if (livePropsFilter === 'broker_viable') return p.is_broker_viable;
                         return true;
                       })
-                      .map((prop) => (
-                        <div
-                          key={prop.id}
-                          className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 flex flex-col justify-between space-y-4 hover:border-slate-700 transition-all shadow-lg"
-                        >
-                          <div className="space-y-2">
-                            {prop.email_subject && (
-                              <div className="flex items-center gap-2 text-[11px] text-slate-400 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800/80">
-                                <span className="text-emerald-400 font-bold">{t.badgeFromGmail}:</span>
-                                <span className="truncate">{prop.email_subject}</span>
-                              </div>
-                            )}
+                      .map((prop) => {
+                        const finalPropertyUrl =
+                          prop.url && prop.url.startsWith('http')
+                            ? prop.url
+                            : `https://www.idealista.com/buscar/venta-viviendas/${encodeURIComponent((prop.district || 'barcelona').toLowerCase().replace(/[\s\']/g, '-'))}/?precio-hasta=${prop.price}`;
 
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                                  {prop.district || 'Barcelona'}
-                                </span>
-                                <h3 className="text-base font-bold text-white mt-1.5">{prop.title}</h3>
-                              </div>
-                              <span
-                                className={`text-xs px-2.5 py-1 rounded-full font-extrabold uppercase ${
-                                  prop.status === 'VIABLE'
-                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        return (
+                          <div
+                            key={prop.id}
+                            className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 flex flex-col justify-between space-y-4 hover:border-slate-700 transition-all shadow-lg"
+                          >
+                            <div className="space-y-3">
+                              {prop.image_url && (
+                                <div className="relative w-full h-44 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 group">
+                                  <img
+                                    src={prop.image_url}
+                                    alt={prop.title}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                    loading="lazy"
+                                    onError={(e) => {
+                                      (e.target as HTMLElement).style.display = 'none';
+                                    }}
+                                  />
+                                  <div className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-slate-950/80 backdrop-blur-sm border border-slate-700 text-[10px] text-slate-300 font-medium">
+                                    Idealista
+                                  </div>
+                                </div>
+                              )}
+
+                              {prop.email_subject && (
+                                <div className="flex items-center gap-2 text-[11px] text-slate-400 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800/80">
+                                  <span className="text-emerald-400 font-bold">{t.badgeFromGmail}:</span>
+                                  <span className="truncate">{prop.email_subject}</span>
+                                </div>
+                              )}
+
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                                    {prop.district || 'Barcelona'}
+                                  </span>
+                                  <h3 className="text-base font-bold text-white mt-1.5 leading-snug">{prop.title}</h3>
+                                </div>
+                                <span
+                                  className={`text-xs px-2.5 py-1 rounded-full font-extrabold uppercase whitespace-nowrap ${
+                                    prop.status === 'VIABLE'
+                                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                      : prop.is_broker_viable
+                                      ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30'
+                                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                  }`}
+                                >
+                                  {prop.status === 'VIABLE'
+                                    ? t.badgeDirectViableCard
                                     : prop.is_broker_viable
-                                    ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30'
-                                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                }`}
-                              >
-                                {prop.status === 'VIABLE'
-                                  ? t.badgeDirectViableCard
-                                  : prop.is_broker_viable
-                                  ? t.badgeBrokerViableCard(prop.best_broker_ltv || 95)
-                                  : t.statusModerateRisk}
-                              </span>
+                                    ? t.badgeBrokerViableCard(prop.best_broker_ltv || 95)
+                                    : t.statusModerateRisk}
+                                </span>
+                              </div>
+                              {prop.description && (
+                                <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{prop.description}</p>
+                              )}
                             </div>
-                            {prop.description && (
-                              <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{prop.description}</p>
-                            )}
-                          </div>
 
-                          {/* Métricas Principales */}
-                          <div className="grid grid-cols-3 gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800/80 text-xs">
-                            <div>
-                              <div className="text-slate-500 text-[10px]">{t.priceLabel}</div>
-                              <div className="font-bold text-white mt-0.5">{prop.price.toLocaleString(numberLocale)} €</div>
-                            </div>
-                            <div>
-                              <div className="text-slate-500 text-[10px]">{t.cuotaLabel} (80%)</div>
-                              <div className="font-bold text-emerald-400 mt-0.5">{prop.monthly_payment_80.toLocaleString(numberLocale)} €</div>
-                            </div>
-                            <div>
-                              <div className="text-slate-500 text-[10px]">{t.dtiShortLabel}</div>
-                              <div className={`font-bold mt-0.5 ${prop.dti_percent_80 <= 33 ? 'text-emerald-400' : 'text-amber-300'}`}>
-                                {prop.dti_percent_80}%
+                            {/* Métricas Principales */}
+                            <div className="grid grid-cols-3 gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800/80 text-xs">
+                              <div>
+                                <div className="text-slate-500 text-[10px]">{t.priceLabel}</div>
+                                <div className="font-bold text-white mt-0.5">{prop.price.toLocaleString(numberLocale)} €</div>
+                              </div>
+                              <div>
+                                <div className="text-slate-500 text-[10px]">{t.cuotaLabel} (80%)</div>
+                                <div className="font-bold text-emerald-400 mt-0.5">{prop.monthly_payment_80.toLocaleString(numberLocale)} €</div>
+                              </div>
+                              <div>
+                                <div className="text-slate-500 text-[10px]">{t.dtiShortLabel}</div>
+                                <div className={`font-bold mt-0.5 ${prop.dti_percent_80 <= 33 ? 'text-emerald-400' : 'text-amber-300'}`}>
+                                  {prop.dti_percent_80}%
+                                </div>
                               </div>
                             </div>
-                          </div>
 
-                          {/* Destacado de Ventaja con Broker si aplica */}
-                          {prop.is_broker_viable && prop.best_broker_ltv && prop.months_needed_broker !== undefined && (
-                            <div className="bg-gradient-to-r from-teal-950/40 to-emerald-950/30 border border-teal-500/30 rounded-xl p-2.5 text-xs text-teal-300 flex items-center justify-between">
-                              <span>
-                                {t.brokerSavingsAdvantage(
-                                  prop.best_broker_ltv,
-                                  prop.months_needed_broker,
-                                  `${prop.total_upfront_broker?.toLocaleString(numberLocale)} €`
-                                )}
-                              </span>
-                              <span className="font-bold text-white bg-teal-500/20 px-2 py-0.5 rounded text-[11px]">
-                                {prop.monthly_payment_broker?.toLocaleString(numberLocale)} €{t.perMonth}
-                              </span>
-                            </div>
-                          )}
+                            {/* Destacado de Ventaja con Broker si aplica */}
+                            {prop.is_broker_viable && prop.best_broker_ltv && prop.months_needed_broker !== undefined && (
+                              <div className="bg-gradient-to-r from-teal-950/40 to-emerald-950/30 border border-teal-500/30 rounded-xl p-2.5 text-xs text-teal-300 flex items-center justify-between">
+                                <span>
+                                  {t.brokerSavingsAdvantage(
+                                    prop.best_broker_ltv,
+                                    prop.months_needed_broker,
+                                    `${prop.total_upfront_broker?.toLocaleString(numberLocale)} €`
+                                  )}
+                                </span>
+                                <span className="font-bold text-white bg-teal-500/20 px-2 py-0.5 rounded text-[11px]">
+                                  {prop.monthly_payment_broker?.toLocaleString(numberLocale)} €{t.perMonth}
+                                </span>
+                              </div>
+                            )}
 
-                          <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs text-slate-400">
-                            <div>
-                              {t.upfrontShortLabel} <strong className="text-white">{prop.total_upfront_80.toLocaleString(numberLocale)} €</strong>
-                            </div>
-                            <div className="flex items-center gap-3">
+                            {/* Resumen de aportación y plazo */}
+                            <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-xs text-slate-400">
+                              <div>
+                                {t.upfrontShortLabel} <strong className="text-white">{prop.total_upfront_80.toLocaleString(numberLocale)} €</strong>
+                              </div>
                               <span className="text-emerald-400 font-medium">
                                 {prop.months_needed_80 === 0 ? t.timeReadyNow : t.monthsCount(prop.months_needed_80)}
                               </span>
-                              {prop.url && (
-                                <a
-                                  href={prop.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-teal-400 hover:text-teal-300 hover:underline flex items-center gap-1"
-                                >
-                                  <span>{t.linkViewProperty}</span>
-                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                  </svg>
-                                </a>
-                              )}
                             </div>
+
+                            {/* BOTÓN DESTACADO PARA VER FOTOS Y ANUNCIO */}
+                            <a
+                              href={finalPropertyUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-teal-500/20 via-emerald-500/20 to-teal-500/10 hover:from-teal-500/30 hover:to-emerald-500/30 text-teal-300 hover:text-white border border-teal-500/40 text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-md group mt-1 cursor-pointer"
+                            >
+                              <span className="text-base group-hover:scale-110 transition-transform">📸</span>
+                              <span>{t.linkViewPhotosAndListing}</span>
+                              <svg className="w-3.5 h-3.5 ml-0.5 text-teal-400 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                            </a>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                   </div>
                 )}
               </div>

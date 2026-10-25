@@ -155,6 +155,7 @@ export interface Translations {
   dtiShortLabel: string;
   upfrontShortLabel: string;
   linkViewProperty: string;
+  linkViewPhotosAndListing: string;
 
   // Propiedades en Vivo (Gmail & Supabase)
   tabPropsLiveTitle: string;
@@ -424,6 +425,7 @@ export const translations: Record<Language, Translations> = {
     dtiShortLabel: 'Esfuerzo DTI',
     upfrontShortLabel: 'Aportación necesaria:',
     linkViewProperty: 'Ver inmueble',
+    linkViewPhotosAndListing: 'Ver fotos y anuncio ↗',
 
     tabPropsLiveTitle: 'Propiedades disponibles (Gmail & Filtro Inmobiliario)',
     tabPropsSubtitleLive: (count) => `Se han registrado ${count} oportunidades viables desde tus alertas automáticas de Gmail en Supabase.`,
@@ -688,6 +690,7 @@ export const translations: Record<Language, Translations> = {
     dtiShortLabel: 'Sforzo DTI',
     upfrontShortLabel: 'Aporto necessario:',
     linkViewProperty: 'Vedi immobile',
+    linkViewPhotosAndListing: 'Vedi foto e annuncio ↗',
 
     tabPropsLiveTitle: 'Proprietà disponibili (Gmail & Filtro Immobiliare)',
     tabPropsSubtitleLive: (count) => `Registrate ${count} opportunità fattibili dai tuoi avvisi automatici Gmail su Supabase.`,

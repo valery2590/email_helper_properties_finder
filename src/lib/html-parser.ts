@@ -57,8 +57,8 @@ const BARCELONA_NEIGHBORHOODS = [
   'Horta-Guinardó', 'Guinardó', 'Carmel', 'Horta', 'Vall d\'Hebron', 'HortaVall',
   'Nou Barris', 'Vilapicina', 'Canyelles',
   'Sant Andreu', 'Sagrera', 'Navas',
-  'Terrassa', 'Sabadell', 'Badalona', 'Hospitalet', 'Vilanova i la Geltrú', 'Vilafranca', 'Sant Cugat', 'Sitges',
-  'Barcelona'
+  'Vallirana', 'Santa Maria de Palautordera', 'Terrassa', 'Sabadell', 'Badalona', 'Hospitalet',
+  'Sant Cugat', 'Sitges', 'Mataró', 'Granollers', 'Castelldefels', 'Gavà', 'Viladecans', 'Barcelona'
 ];
 
 /**
@@ -114,9 +114,9 @@ function parsePrice(text: string): number | null {
  * Extrae el título real del inmueble desde el texto (ej. "Piso en Ca n'Anglada, Terrassa")
  */
 function extractRealTitle(text: string, location: string, price: number): string {
-  const titlePattern = /(?:Piso|Ático|Chalet|Casa|Dúplex|Estudio|Apartamento|Bajo)\s+(?:pareado\s+)?en\s+[^,.\n<>]+(?:,\s*[^,.\n<>]+)?/i;
+  const titlePattern = /(?:Piso|Ático|Chalet|Casa|Dúplex|Estudio|Apartamento|Bajo|Vivienda|Planta baja)\s+(?:pareado\s+|adosado\s+|rural\s+|unifamiliar\s+|o chalet\s+)?(?:independiente\s+)?en\s+[^,.\n<>0-9]+(?:,\s*[^,.\n<>0-9]+)?/i;
   const m = text.match(titlePattern);
-  if (m && m[0] && m[0].length >= 10 && m[0].length <= 80) {
+  if (m && m[0] && m[0].length >= 8 && m[0].length <= 80) {
     return `${m[0].replace(/\s+/g, ' ').trim()} (${price.toLocaleString('es-ES')} €)`;
   }
   return `Inmueble en ${location} (${price.toLocaleString('es-ES')} €)`;
@@ -141,8 +141,11 @@ export function parsePropertiesFromHtml(
     subjectLower.includes('no esta publicado') ||
     subjectLower.includes('ya no está') ||
     subjectLower.includes('ya no esta') ||
+    subjectLower.includes('despublicado') ||
     htmlLower.includes('este inmueble ya no está publicado') ||
-    htmlLower.includes('uno de tus favoritos ya no está publicado')
+    htmlLower.includes('uno de tus favoritos ya no está publicado') ||
+    htmlLower.includes('ya no está disponible') ||
+    htmlLower.includes('ya no esta disponible')
   ) {
     return [];
   }
@@ -208,7 +211,12 @@ export function parsePropertiesFromHtml(
       return;
     }
 
-    const container = $(linkEl).closest('tr, table, div, article');
+    let container = $(linkEl).closest('tr, table, div, article');
+    let depth = 0;
+    while (container.length > 0 && !parsePrice(container.text()) && depth < 4 && !container.is('body')) {
+      container = container.parent().closest('tr, table, div, article');
+      depth++;
+    }
     const containerText = container.length > 0 ? container.text() : $(linkEl).text();
 
     const price = parsePrice(containerText);
@@ -233,6 +241,12 @@ export function parsePropertiesFromHtml(
     const location = detectDistrict(containerText, options?.subject);
     const title = extractRealTitle(containerText, location, price);
 
+    const safeUrl =
+      (linkHref && linkHref.startsWith('http') ? linkHref : undefined) ||
+      candidateLinks[properties.length] ||
+      candidateLinks[0] ||
+      `https://www.idealista.com/buscar/venta-viviendas/${encodeURIComponent(location.toLowerCase().replace(/[\s\']/g, '-'))}/?precio-hasta=${price}`;
+
     properties.push({
       id: `prop-link-${index + 1}-${Date.now().toString(36)}`,
       title,
@@ -242,7 +256,7 @@ export function parsePropertiesFromHtml(
       m2,
       rooms,
       bathrooms,
-      url: linkHref,
+      url: safeUrl,
       imageUrl: img,
       description: containerText.substring(0, 250).replace(/\s+/g, ' ').trim(),
       source: 'idealista_email_parser',
@@ -281,11 +295,11 @@ export function parsePropertiesFromHtml(
         const roomMatch = snippet.match(/(\d+)\s*(?:hab|dorm|habitaci)/i);
         const rooms = roomMatch ? parseInt(roomMatch[1], 10) : undefined;
 
-        // Asignar el enlace real del anuncio
+        // Asignar el enlace real del anuncio o búsqueda directa
         const assignedUrl =
           candidateLinks[fallbackIdx - 1] ||
           candidateLinks[0] ||
-          `https://www.idealista.com/buscar/venta-viviendas/barcelona/?precio-hasta=${priceVal}`;
+          `https://www.idealista.com/buscar/venta-viviendas/${encodeURIComponent(location.toLowerCase().replace(/[\s\']/g, '-'))}/?precio-hasta=${priceVal}`;
 
         // Asignar foto real del correo
         const assignedImg = candidateImages[fallbackIdx - 1] || candidateImages[0] || undefined;
@@ -313,6 +327,14 @@ export function parsePropertiesFromHtml(
   return properties.filter((p) => {
     const t = (p.title || '').toLowerCase();
     const d = (p.description || '').toLowerCase();
-    return !t.includes('no está publicado') && !t.includes('no esta publicado') && !d.includes('ya no está publicado');
+    return (
+      !t.includes('no está publicado') &&
+      !t.includes('no esta publicado') &&
+      !t.includes('ya no está') &&
+      !t.includes('ya no esta') &&
+      !t.includes('despublicado') &&
+      !d.includes('ya no está publicado') &&
+      !d.includes('ya no esta publicado')
+    );
   });
 }
