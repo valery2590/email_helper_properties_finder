@@ -17,9 +17,10 @@ export interface SavedPropertyRecord {
   description?: string;
   source?: string;
 
-  status: 'VIABLE' | 'MODERATE_RISK' | 'NOT_VIABLE' | 'DELETED';
+  status: 'VIABLE' | 'MODERATE_RISK' | 'NOT_VIABLE' | 'DELETED' | 'FAVORITE';
   is_viable: boolean;
   is_broker_viable: boolean;
+  is_favorite?: boolean;
   score: number;
 
   monthly_payment_80: number;
@@ -207,6 +208,7 @@ export async function getSavedProperties(options?: {
         .from('properties')
         .select('*')
         .neq('status', 'DELETED')
+        .neq('status', 'FAVORITE')
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -218,7 +220,41 @@ export async function getSavedProperties(options?: {
 
       const { data, error } = await query;
       if (!error && data && data.length > 0) {
-        return { properties: data as SavedPropertyRecord[], source: 'supabase' };
+        // Consultar favoritos guardados en Supabase
+        const { data: favoriteRows } = await client
+          .from('properties')
+          .select('id, url, title, price')
+          .eq('status', 'FAVORITE');
+
+        const favSet = new Set<string>();
+        if (favoriteRows && Array.isArray(favoriteRows)) {
+          for (const f of favoriteRows) {
+            if (f.url) {
+              const m = f.url.match(/inmueble\/(\d+)/i);
+              if (m) favSet.add(m[1]);
+              favSet.add(f.url.split('?')[0]);
+            }
+            if (f.id) favSet.add(f.id.replace('fav-', ''));
+            if (f.title && f.price) favSet.add(`${f.title}-${f.price}`);
+          }
+        }
+
+        const mappedFromDb = (data as SavedPropertyRecord[]).map((p) => {
+          const m = p.url ? p.url.match(/inmueble\/(\d+)/i) : null;
+          const cleanUrl = m ? `https://www.idealista.com/inmueble/${m[1]}/` : (p.url ? p.url.split('?')[0] : '');
+          const isFav =
+            (m && favSet.has(m[1])) ||
+            (cleanUrl && favSet.has(cleanUrl)) ||
+            favSet.has(p.id) ||
+            favSet.has(`${p.title}-${p.price}`);
+
+          return {
+            ...p,
+            is_favorite: Boolean(isFav),
+          };
+        });
+
+        return { properties: mappedFromDb, source: 'supabase' };
       }
     } catch (err) {
       console.warn('Error leyendo de Supabase, usando almacén local:', err);
@@ -383,3 +419,91 @@ export async function deleteProperty(id: string): Promise<boolean> {
 
   return true;
 }
+
+/**
+ * Alterna el estado de favorito de una propiedad en Supabase de forma persistente
+ */
+export async function toggleFavoriteProperty(params: {
+  id: string;
+  url?: string;
+  title?: string;
+  price?: number;
+  isFavorite: boolean;
+}): Promise<boolean> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return false;
+  }
+
+  const idMatch = params.url ? params.url.match(/inmueble\/(\d+)/i) : null;
+  const listingId = idMatch ? idMatch[1] : params.id.replace(/[^a-zA-Z0-9_-]/g, '');
+  const canonicalUrl = idMatch ? `https://www.idealista.com/inmueble/${idMatch[1]}/` : (params.url ? params.url.split('?')[0] : '');
+  const favRowId = `fav-${listingId}`;
+
+  try {
+    if (params.isFavorite) {
+      // 1. Limpiar cualquier registro previo de favorito para este inmueble
+      await client.from('properties').delete().eq('id', favRowId);
+      if (canonicalUrl) {
+        await client.from('properties').delete().eq('status', 'FAVORITE').eq('url', canonicalUrl);
+      }
+      if (idMatch) {
+        await client.from('properties').delete().eq('status', 'FAVORITE').ilike('url', `%${idMatch[1]}%`);
+      }
+      if (params.title && params.price) {
+        await client
+          .from('properties')
+          .delete()
+          .eq('status', 'FAVORITE')
+          .eq('title', params.title)
+          .eq('price', params.price);
+      }
+
+      // 2. Insertar fila marcadora de favorito
+      const { error } = await client.from('properties').insert([
+        {
+          id: favRowId,
+          url: canonicalUrl || params.url,
+          title: params.title || 'Inmueble favorito',
+          price: params.price || 0,
+          status: 'FAVORITE',
+          is_viable: true,
+          is_broker_viable: false,
+          score: 100,
+          monthly_payment_80: 0,
+          dti_percent_80: 0,
+          total_upfront_80: 0,
+          shortfall_80: 0,
+          months_needed_80: 0,
+        },
+      ]);
+
+      if (error) {
+        console.warn('Error guardando favorito en Supabase:', error.message);
+        return false;
+      }
+    } else {
+      // Quitar favorito: borrar cualquier fila de favorito asociada
+      await client.from('properties').delete().eq('id', favRowId);
+      if (canonicalUrl) {
+        await client.from('properties').delete().eq('status', 'FAVORITE').eq('url', canonicalUrl);
+      }
+      if (idMatch) {
+        await client.from('properties').delete().eq('status', 'FAVORITE').ilike('url', `%${idMatch[1]}%`);
+      }
+      if (params.title && params.price) {
+        await client
+          .from('properties')
+          .delete()
+          .eq('status', 'FAVORITE')
+          .eq('title', params.title)
+          .eq('price', params.price);
+      }
+    }
+    return true;
+  } catch (err) {
+    console.warn('Excepción al alternar favorito en Supabase:', err);
+    return false;
+  }
+}
+

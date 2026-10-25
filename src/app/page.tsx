@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   DEFAULT_BUYER_PROFILE,
   DEFAULT_SAVINGS_PORTFOLIO,
@@ -91,12 +91,41 @@ export default function Home() {
     }
   }, []);
 
-  // Alternar favorito
-  const toggleFavorite = (id: string, e: React.MouseEvent) => {
+  // Helper para comprobar si una propiedad es favorita considerando su ID, URL canónica o flag de base de datos
+  const isPropertyFavorite = useCallback(
+    (prop: SavedPropertyRecord): boolean => {
+      if (prop.is_favorite) return true;
+      if (favoriteIds.includes(prop.id)) return true;
+      const m = prop.url ? prop.url.match(/inmueble\/(\d+)/i) : null;
+      if (m && favoriteIds.includes(m[1])) return true;
+      const cleanUrl = m ? `https://www.idealista.com/inmueble/${m[1]}/` : (prop.url ? prop.url.split('?')[0] : '');
+      if (cleanUrl && favoriteIds.includes(cleanUrl)) return true;
+      return false;
+    },
+    [favoriteIds]
+  );
+
+  // Alternar favorito tanto en localStorage (respuesta inmediata) como en Supabase
+  const toggleFavorite = async (prop: SavedPropertyRecord, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
+    const m = prop.url ? prop.url.match(/inmueble\/(\d+)/i) : null;
+    const cleanUrl = m ? `https://www.idealista.com/inmueble/${m[1]}/` : (prop.url ? prop.url.split('?')[0] : '');
+    const listingId = m ? m[1] : '';
+    const currentlyFav = isPropertyFavorite(prop);
+    const nextFav = !currentlyFav;
+
+    // Actualización optimista en memoria y localStorage
     setFavoriteIds((prev) => {
-      const next = prev.includes(id) ? prev.filter((favId) => favId !== id) : [...prev, id];
+      let next: string[];
+      if (nextFav) {
+        const toAdd = [prop.id, listingId, cleanUrl].filter(Boolean) as string[];
+        next = Array.from(new Set([...prev, ...toAdd]));
+      } else {
+        const toRemove = new Set([prop.id, listingId, cleanUrl].filter(Boolean));
+        next = prev.filter((favId) => !toRemove.has(favId));
+      }
       try {
         localStorage.setItem('propfinder_favorites', JSON.stringify(next));
       } catch (err) {
@@ -104,6 +133,34 @@ export default function Home() {
       }
       return next;
     });
+
+    // Actualizar el estado en vivo de la propiedad para que los filtros y orden reaccionen al instante
+    setLiveProperties((prev) =>
+      prev.map((p) => {
+        const isTarget =
+          p.id === prop.id ||
+          (cleanUrl && p.url && p.url.includes(cleanUrl)) ||
+          (listingId && p.url && p.url.includes(listingId));
+        return isTarget ? { ...p, is_favorite: nextFav } : p;
+      })
+    );
+
+    // Persistir en Supabase vía API
+    try {
+      await fetch('/api/favorites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: prop.id,
+          url: prop.url,
+          title: prop.title,
+          price: prop.price,
+          isFavorite: nextFav,
+        }),
+      });
+    } catch (err) {
+      console.warn('Error syncing favorite to Supabase:', err);
+    }
   };
 
   // Borrar propiedad tanto de la base de datos como de la vista en tiempo real (con exclusión permanente)
@@ -145,14 +202,30 @@ export default function Home() {
           return next;
         });
 
-        // Si estaba en favoritos, quitarlo también
+        // Si estaba en favoritos, quitarlo también de memoria, localStorage y Supabase
+        const listingId = idMatch ? idMatch[1] : '';
         setFavoriteIds((prev) => {
-          const next = prev.filter((favId) => favId !== id);
+          const toRemove = new Set([id, listingId, cleanUrl].filter(Boolean));
+          const next = prev.filter((favId) => !toRemove.has(favId));
           try {
             localStorage.setItem('propfinder_favorites', JSON.stringify(next));
           } catch {}
           return next;
         });
+
+        try {
+          fetch('/api/favorites', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id,
+              url: target?.url,
+              title: target?.title,
+              price: target?.price,
+              isFavorite: false,
+            }),
+          }).catch(() => {});
+        } catch {}
       }
     } catch (err) {
       console.error('Error deleting property:', err);
@@ -204,20 +277,20 @@ export default function Home() {
     const filtered = activeLiveProperties.filter((p) => {
       if (livePropsFilter === 'viable') return p.status === 'VIABLE';
       if (livePropsFilter === 'broker_viable') return p.is_broker_viable;
-      if (livePropsFilter === 'favorites') return favoriteIds.includes(p.id);
+      if (livePropsFilter === 'favorites') return isPropertyFavorite(p);
       return true;
     });
 
     // Favoritos SIEMPRE primeros
     return [...filtered].sort((a, b) => {
-      const aFav = favoriteIds.includes(a.id) ? 1 : 0;
-      const bFav = favoriteIds.includes(b.id) ? 1 : 0;
+      const aFav = isPropertyFavorite(a) ? 1 : 0;
+      const bFav = isPropertyFavorite(b) ? 1 : 0;
       if (aFav !== bFav) {
         return bFav - aFav;
       }
       return 0;
     });
-  }, [activeLiveProperties, livePropsFilter, favoriteIds]);
+  }, [activeLiveProperties, livePropsFilter, favoriteIds, isPropertyFavorite]);
 
   const fetchLiveProperties = async () => {
     setLoadingLiveProps(true);
@@ -227,6 +300,25 @@ export default function Home() {
       if (data.success && Array.isArray(data.properties)) {
         setLiveProperties(data.properties);
         setSupabaseConnected(Boolean(data.isSupabaseConnected));
+
+        // Sincronizar favoritos procedentes de Supabase
+        const dbFavKeys = (data.properties as SavedPropertyRecord[])
+          .filter((p) => p.is_favorite)
+          .flatMap((p) => {
+            const m = p.url ? p.url.match(/inmueble\/(\d+)/i) : null;
+            const cleanUrl = m ? `https://www.idealista.com/inmueble/${m[1]}/` : (p.url ? p.url.split('?')[0] : '');
+            return [p.id, m ? m[1] : null, cleanUrl].filter(Boolean) as string[];
+          });
+
+        if (dbFavKeys.length > 0) {
+          setFavoriteIds((prev) => {
+            const merged = Array.from(new Set([...prev, ...dbFavKeys]));
+            try {
+              localStorage.setItem('propfinder_favorites', JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
+        }
       }
     } catch (err) {
       console.warn('Error fetching live properties:', err);
@@ -1081,7 +1173,7 @@ export default function Home() {
                   >
                     <span>{t.filterFavorites}</span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-800 text-amber-300 font-bold">
-                      {activeLiveProperties.filter((p) => favoriteIds.includes(p.id)).length}
+                      {activeLiveProperties.filter((p) => isPropertyFavorite(p)).length}
                     </span>
                   </button>
                   <button
@@ -1167,7 +1259,7 @@ export default function Home() {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {displayedProperties.map((prop) => {
-                      const isFavorite = favoriteIds.includes(prop.id);
+                      const isFavorite = isPropertyFavorite(prop);
                       const finalPropertyUrl =
                         prop.url && prop.url.startsWith('http')
                           ? prop.url
@@ -1220,7 +1312,7 @@ export default function Home() {
                               <div className="flex items-center gap-1.5 shrink-0 ml-auto">
                                 <button
                                   type="button"
-                                  onClick={(e) => toggleFavorite(prop.id, e)}
+                                  onClick={(e) => toggleFavorite(prop, e)}
                                   className={`px-2.5 py-1 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
                                     isFavorite
                                       ? 'bg-amber-500/25 text-amber-300 border-amber-500/60 shadow-sm shadow-amber-500/20'
