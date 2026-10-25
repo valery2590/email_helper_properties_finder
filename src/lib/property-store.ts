@@ -41,6 +41,14 @@ export const propertyStore = {
     return globalThis.__propfinderEvaluatedStore || [];
   },
 
+  remove(id: string): void {
+    if (globalThis.__propfinderEvaluatedStore) {
+      globalThis.__propfinderEvaluatedStore = globalThis.__propfinderEvaluatedStore.filter(
+        (item) => item.id !== id
+      );
+    }
+  },
+
   clear(): void {
     globalThis.__propfinderEvaluatedStore = [];
   },

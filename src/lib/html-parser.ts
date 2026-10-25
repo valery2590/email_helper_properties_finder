@@ -84,31 +84,44 @@ function detectDistrict(text: string, subject?: string): string {
 
 /**
  * Limpia y normaliza una URL extraída de un email, desempaquetando
- * enlaces de tracking para obtener la URL directa al inmueble (/inmueble/ID/)
+ * enlaces de tracking para obtener la URL directa canónica al inmueble (/inmueble/ID/)
  */
-function cleanPropertyUrl(rawUrl?: string): string | undefined {
+export function cleanPropertyUrl(rawUrl?: string): string | undefined {
   if (!rawUrl) return undefined;
   try {
-    const trimmed = rawUrl.trim();
+    let target = rawUrl.trim();
     // 1. Extraer URL de parámetros típicos de tracking (u=, url=, target=, redirect=, dest=)
-    const match = trimmed.match(/[?&](?:url|u|target|redirect|dest)=([^&]+)/i);
+    const match = target.match(/[?&](?:url|u|target|redirect|dest)=([^&]+)/i);
     if (match && match[1]) {
       const decoded = decodeURIComponent(match[1]);
       if (decoded.startsWith('http')) {
-        return decoded;
+        target = decoded;
       }
     }
 
     // 2. Si el link contiene una URL codificada a idealista.com/inmueble/
-    const inmuebleMatch = trimmed.match(/(https?(?:%3A%2F%2F|\:\/\/)[^&"'\s]*inmueble[^&"'\s]*)/i);
+    const inmuebleMatch = target.match(/(https?(?:%3A%2F%2F|\:\/\/)[^&"'\s]*inmueble[^&"'\s]*)/i);
     if (inmuebleMatch && inmuebleMatch[1]) {
       const decoded = decodeURIComponent(inmuebleMatch[1]);
       if (decoded.startsWith('http')) {
-        return decoded;
+        target = decoded;
       }
     }
 
-    return trimmed;
+    // 3. Normalizar URLs directas de Idealista: https://www.idealista.com/inmueble/12345678/
+    const idMatch = target.match(/(https?:\/\/(?:www\.)?idealista\.com\/inmueble\/\d+)/i);
+    if (idMatch && idMatch[1]) {
+      return `${idMatch[1]}/`;
+    }
+
+    // 4. Quitar query parameters de tracking para otras URLs
+    try {
+      const parsed = new URL(target);
+      parsed.search = '';
+      return parsed.toString();
+    } catch {
+      return target.split('?')[0];
+    }
   } catch {
     return rawUrl.trim();
   }

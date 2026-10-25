@@ -73,12 +73,23 @@ export async function GET(request: NextRequest) {
         };
       });
 
+    // Desduplicación por URL canónica y exclusión de DELETED
+    const seen = new Set<string>();
+    const deduplicated = cleaned.filter((p) => {
+      if ((p.status as unknown as string) === 'DELETED') return false;
+      const cleanUrl = p.url ? p.url.split('?')[0] : '';
+      const key = cleanUrl || `${p.title}-${p.price}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
     return NextResponse.json({
       success: true,
-      count: cleaned.length,
+      count: deduplicated.length,
       source,
       isSupabaseConnected: isSupabaseConnected(),
-      properties: cleaned,
+      properties: deduplicated,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido al obtener propiedades';

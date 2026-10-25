@@ -66,9 +66,10 @@ export default function Home() {
   const [livePropsFilter, setLivePropsFilter] = useState<'all' | 'viable' | 'broker_viable' | 'favorites'>('all');
   const [supabaseConnected, setSupabaseConnected] = useState<boolean>(false);
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+  const [deletedKeys, setDeletedKeys] = useState<string[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Cargar favoritos persistidos en localStorage
+  // Cargar favoritos y lista negra de eliminados desde localStorage
   useEffect(() => {
     try {
       const stored = localStorage.getItem('propfinder_favorites');
@@ -78,8 +79,15 @@ export default function Home() {
           setFavoriteIds(parsed);
         }
       }
+      const storedDeleted = localStorage.getItem('propfinder_deleted_keys');
+      if (storedDeleted) {
+        const parsed = JSON.parse(storedDeleted);
+        if (Array.isArray(parsed)) {
+          setDeletedKeys(parsed);
+        }
+      }
     } catch (err) {
-      console.warn('Error reading favorites from localStorage:', err);
+      console.warn('Error reading from localStorage:', err);
     }
   }, []);
 
@@ -98,7 +106,7 @@ export default function Home() {
     });
   };
 
-  // Borrar propiedad tanto de la base de datos como de la vista en tiempo real
+  // Borrar propiedad tanto de la base de datos como de la vista en tiempo real (con exclusión permanente)
   const handleDeleteProperty = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -106,12 +114,37 @@ export default function Home() {
       return;
     }
     setDeletingId(id);
+    const target = liveProperties.find((p) => p.id === id);
+    const idMatch = target?.url ? target.url.match(/inmueble\/(\d+)/i) : null;
+    const cleanUrl = idMatch ? `https://www.idealista.com/inmueble/${idMatch[1]}/` : (target?.url ? target.url.split('?')[0] : '');
+    const titlePriceKey = target ? `${target.title}-${target.price}` : '';
+
     try {
       const res = await fetch(`/api/properties?id=${encodeURIComponent(id)}`, {
         method: 'DELETE',
       });
       if (res.ok) {
-        setLiveProperties((prev) => prev.filter((p) => p.id !== id));
+        // Eliminar de la vista inmediatamente (incluyendo cualquier duplicado con el mismo enlace o título)
+        setLiveProperties((prev) =>
+          prev.filter((p) => {
+            if (p.id === id) return false;
+            if (cleanUrl && p.url && p.url.includes(cleanUrl)) return false;
+            if (titlePriceKey && `${p.title}-${p.price}` === titlePriceKey) return false;
+            return true;
+          })
+        );
+
+        // Guardar en la lista negra local persistente para que el refresh nunca la vuelva a mostrar
+        setDeletedKeys((prev) => {
+          const next = [...prev, id];
+          if (cleanUrl && !next.includes(cleanUrl)) next.push(cleanUrl);
+          if (titlePriceKey && !next.includes(titlePriceKey)) next.push(titlePriceKey);
+          try {
+            localStorage.setItem('propfinder_deleted_keys', JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+
         // Si estaba en favoritos, quitarlo también
         setFavoriteIds((prev) => {
           const next = prev.filter((favId) => favId !== id);
@@ -128,9 +161,32 @@ export default function Home() {
     }
   };
 
-  // Filtrar estrictamente cualquier propiedad que contenga "no está publicado", tags no deseados (alquilada, ocupada, nuda) o < 5 fotos
+  // Filtrar estrictamente cualquier propiedad que contenga "no está publicado", tags no deseados, < 5 fotos, o que haya sido eliminada
   const activeLiveProperties = useMemo(() => {
+    const seen = new Set<string>();
     return liveProperties.filter((p) => {
+      // 1. Excluir si tiene estado DELETED o si está en la lista de eliminados
+      if ((p.status as unknown as string) === 'DELETED') return false;
+      const idMatch = p.url ? p.url.match(/inmueble\/(\d+)/i) : null;
+      const cleanUrl = idMatch ? `https://www.idealista.com/inmueble/${idMatch[1]}/` : (p.url ? p.url.split('?')[0] : '');
+      const titlePriceKey = `${p.title}-${p.price}`;
+
+      if (
+        deletedKeys.includes(p.id) ||
+        (cleanUrl && deletedKeys.includes(cleanUrl)) ||
+        deletedKeys.includes(titlePriceKey)
+      ) {
+        return false;
+      }
+
+      // 2. Desduplicación estricta para evitar tarjetas repetidas
+      const dedupKey = cleanUrl || titlePriceKey;
+      if (seen.has(dedupKey)) {
+        return false;
+      }
+      seen.add(dedupKey);
+
+      // 3. Excluir no deseados (tags de alquilada, ocupada, nuda, a reformar, o < 5 fotos)
       const combined = `${p.title || ''} ${p.email_subject || ''} ${p.description || ''} ${p.url || ''}`;
       if (isUnwantedProperty(combined)) {
         return false;
@@ -141,7 +197,7 @@ export default function Home() {
       }
       return true;
     });
-  }, [liveProperties]);
+  }, [liveProperties, deletedKeys]);
 
   // Lista de propiedades filtrada y con los FAVORITOS SIEMPRE PRIMEROS
   const displayedProperties = useMemo(() => {
