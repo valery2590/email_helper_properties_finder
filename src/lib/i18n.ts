@@ -165,6 +165,10 @@ export interface Translations {
   filterAll: string;
   filterViableDirect: string;
   filterBrokerViable: string;
+  filterFavorites: string;
+  badgeFavorite: string;
+  btnDeleteProperty: string;
+  confirmDeleteProperty: string;
   badgeFromGmail: string;
   badgeDirectViableCard: string;
   badgeBrokerViableCard: (ltv: number) => string;
@@ -434,6 +438,10 @@ export const translations: Record<Language, Translations> = {
     filterAll: 'Todos',
     filterViableDirect: 'Viable Directo (80%)',
     filterBrokerViable: 'Viable con Broker (90%-100%)',
+    filterFavorites: 'Favoritos ⭐',
+    badgeFavorite: 'FAVORITO ⭐',
+    btnDeleteProperty: 'Eliminar de la lista',
+    confirmDeleteProperty: '¿Deseas eliminar este inmueble de tu lista?',
     badgeFromGmail: 'Alerta Gmail',
     badgeDirectViableCard: 'COMPRA VIABLE (80%)',
     badgeBrokerViableCard: (ltv) => `VIABLE CON BROKER (${ltv}%)`,
@@ -699,6 +707,10 @@ export const translations: Record<Language, Translations> = {
     filterAll: 'Tutti',
     filterViableDirect: 'Fattibile Diretto (80%)',
     filterBrokerViable: 'Fattibile con Broker (90%-100%)',
+    filterFavorites: 'Preferiti ⭐',
+    badgeFavorite: 'PREFERITO ⭐',
+    btnDeleteProperty: 'Elimina dalla lista',
+    confirmDeleteProperty: 'Vuoi eliminare questo immobile dalla tua lista?',
     badgeFromGmail: 'Avviso Gmail',
     badgeDirectViableCard: 'ACQUISTO FATTIBILE (80%)',
     badgeBrokerViableCard: (ltv) => `FATTIBILE CON BROKER (${ltv}%)`,

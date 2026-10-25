@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSavedProperties, deleteProperty, isSupabaseConnected } from '@/lib/supabase';
+import { isUnwantedProperty, extractPhotoCount } from '@/lib/html-parser';
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,8 +10,8 @@ export async function GET(request: NextRequest) {
 
     const { properties, source } = await getSavedProperties({ filter, limit });
 
-    // Excluir de forma absoluta cualquier inmueble que indique "no está publicado" o "ya no está"
-    // y asegurar que todos los inmuebles devuelvan un título descriptivo y una URL válida para ver fotos y anuncio
+    // Excluir de forma absoluta cualquier inmueble que indique "no está publicado",
+    // tags no deseados ("alquilada", "ocupada", "nuda") o que tenga menos de 5 fotos (< 5 fotos)
     const titlePattern = /(?:Piso|Ático|Chalet|Casa|Dúplex|Estudio|Apartamento|Bajo|Vivienda|Planta baja)\s+(?:pareado\s+|adosado\s+|rural\s+|unifamiliar\s+|o chalet\s+)?(?:independiente\s+)?en\s+[^,.\n<>0-9]+(?:,\s*[^,.\n<>0-9]+)?/i;
     const knownTowns = [
       'Vallirana', 'Terrassa', 'Santa Maria de Palautordera', 'Sabadell', 'Badalona', 'Hospitalet',
@@ -19,22 +20,15 @@ export async function GET(request: NextRequest) {
 
     const cleaned = properties
       .filter((p) => {
-        const t = (p.title || '').toLowerCase();
-        const s = (p.email_subject || '').toLowerCase();
-        const d = (p.description || '').toLowerCase();
-        return (
-          !t.includes('no está publicado') &&
-          !t.includes('no esta publicado') &&
-          !t.includes('ya no está') &&
-          !t.includes('ya no esta') &&
-          !t.includes('despublicado') &&
-          !s.includes('no está publicado') &&
-          !s.includes('no esta publicado') &&
-          !s.includes('ya no está') &&
-          !s.includes('ya no esta') &&
-          !d.includes('ya no está publicado') &&
-          !d.includes('ya no esta publicado')
-        );
+        const combined = `${p.title || ''} ${p.email_subject || ''} ${p.description || ''} ${p.url || ''}`;
+        if (isUnwantedProperty(combined)) {
+          return false;
+        }
+        const photoCount = extractPhotoCount(combined);
+        if (photoCount !== null && photoCount < 5) {
+          return false;
+        }
+        return true;
       })
       .map((p) => {
         let district = p.district || 'Barcelona';

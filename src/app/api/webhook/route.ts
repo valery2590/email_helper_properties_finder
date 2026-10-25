@@ -10,7 +10,7 @@ import {
   BuyerProfile,
   MortgageConfig,
 } from '@/lib/financial-engine';
-import { parsePropertiesFromHtml } from '@/lib/html-parser';
+import { parsePropertiesFromHtml, isUnwantedProperty, extractPhotoCount } from '@/lib/html-parser';
 import { propertyStore } from '@/lib/property-store';
 import { saveEvaluatedProperty } from '@/lib/supabase';
 
@@ -202,13 +202,10 @@ export async function POST(request: NextRequest) {
     const subjectStr = (metadata?.subject || '').toLowerCase();
     const rawContentStr = typeof parsedBody === 'string' ? parsedBody.toLowerCase() : JSON.stringify(parsedBody).toLowerCase();
 
-    // Regla de oro: omitir de inmediato si el asunto o cuerpo indica que no está publicado
+    // Regla de oro: omitir de inmediato si el asunto o cuerpo indica que no está publicado o tags no deseados
     if (
-      subjectStr.includes('no está publicado') ||
-      subjectStr.includes('no esta publicado') ||
-      subjectStr.includes('ya no está') ||
-      subjectStr.includes('ya no esta') ||
-      subjectStr.includes('despublicado') ||
+      isUnwantedProperty(subjectStr) ||
+      isUnwantedProperty(rawContentStr) ||
       rawContentStr.includes('este inmueble ya no está publicado') ||
       rawContentStr.includes('uno de tus favoritos ya no está publicado') ||
       rawContentStr.includes('ya no está disponible') ||
@@ -216,7 +213,7 @@ export async function POST(request: NextRequest) {
     ) {
       return NextResponse.json({
         success: true,
-        message: 'Omitido: inmueble despublicado o retirado',
+        message: 'Omitido: inmueble despublicado o tags no deseados (alquilada/ocupada/nuda)',
         omitted: true,
         count: 0,
         results: [],
@@ -231,20 +228,14 @@ export async function POST(request: NextRequest) {
       (typeof parsedBody === 'object' && parsedBody !== null && 'lang' in parsedBody ? (parsedBody as { lang?: 'es' | 'it' }).lang : 'es') ||
       'es';
 
-    // Filtrar y asegurar URL en cada inmueble recibido
+    // Filtrar inmuebles no deseados (< 5 fotos, alquilada, ocupada, nuda, etc.) y asegurar URL
     const sanitizedProperties = (properties || [])
       .filter((p) => {
-        const t = (p.title || '').toLowerCase();
-        const d = (p.description || '').toLowerCase();
-        return (
-          !t.includes('no está publicado') &&
-          !t.includes('no esta publicado') &&
-          !t.includes('ya no está') &&
-          !t.includes('ya no esta') &&
-          !t.includes('despublicado') &&
-          !d.includes('ya no está publicado') &&
-          !d.includes('ya no esta publicado')
-        );
+        const combined = `${p.title || ''} ${p.description || ''} ${p.url || ''}`;
+        if (isUnwantedProperty(combined)) return false;
+        const count = extractPhotoCount(combined);
+        if (count !== null && count < 5) return false;
+        return true;
       })
       .map((p) => {
         const dist = p.district || p.location || 'barcelona';
@@ -329,11 +320,13 @@ export async function POST(request: NextRequest) {
       ? calculateFinancingScenarios(properties[0].price, activeBuyerProfile, activeMortgageConfig, lang)
       : [];
 
-    // Registrar en Supabase y almacén (omitiendo despublicados)
+    // Registrar en Supabase y almacén (omitiendo despublicados y tags no deseados)
     const validReports = filteredReports.filter((r) => {
-      const t = (r.property.title || '').toLowerCase();
-      const d = (r.property.description || '').toLowerCase();
-      return !t.includes('no está publicado') && !t.includes('no esta publicado') && !d.includes('ya no está publicado');
+      const combined = `${r.property.title || ''} ${r.property.description || ''} ${r.property.url || ''}`;
+      if (isUnwantedProperty(combined)) return false;
+      const count = extractPhotoCount(combined);
+      if (count !== null && count < 5) return false;
+      return true;
     });
 
     const savedRecords: unknown[] = [];

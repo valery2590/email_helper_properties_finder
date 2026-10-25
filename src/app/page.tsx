@@ -14,6 +14,7 @@ import {
 } from '@/lib/financial-engine';
 import { translations, Language } from '@/lib/i18n';
 import { SavedPropertyRecord } from '@/lib/supabase';
+import { isUnwantedProperty, extractPhotoCount } from '@/lib/property-filters';
 
 export default function Home() {
   // Idioma activo: Español (es) o Italiano (it)
@@ -62,30 +63,105 @@ export default function Home() {
   // Estado de pisos guardados en Supabase / Almacén (alertas de Gmail)
   const [liveProperties, setLiveProperties] = useState<SavedPropertyRecord[]>([]);
   const [loadingLiveProps, setLoadingLiveProps] = useState<boolean>(false);
-  const [livePropsFilter, setLivePropsFilter] = useState<'all' | 'viable' | 'broker_viable'>('all');
+  const [livePropsFilter, setLivePropsFilter] = useState<'all' | 'viable' | 'broker_viable' | 'favorites'>('all');
   const [supabaseConnected, setSupabaseConnected] = useState<boolean>(false);
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Filtrar estrictamente cualquier propiedad que contenga "no está publicado" o que esté despublicada
+  // Cargar favoritos persistidos en localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('propfinder_favorites');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setFavoriteIds(parsed);
+        }
+      }
+    } catch (err) {
+      console.warn('Error reading favorites from localStorage:', err);
+    }
+  }, []);
+
+  // Alternar favorito
+  const toggleFavorite = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setFavoriteIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((favId) => favId !== id) : [...prev, id];
+      try {
+        localStorage.setItem('propfinder_favorites', JSON.stringify(next));
+      } catch (err) {
+        console.warn('Error saving favorites to localStorage:', err);
+      }
+      return next;
+    });
+  };
+
+  // Borrar propiedad tanto de la base de datos como de la vista en tiempo real
+  const handleDeleteProperty = async (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(t.confirmDeleteProperty)) {
+      return;
+    }
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/properties?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setLiveProperties((prev) => prev.filter((p) => p.id !== id));
+        // Si estaba en favoritos, quitarlo también
+        setFavoriteIds((prev) => {
+          const next = prev.filter((favId) => favId !== id);
+          try {
+            localStorage.setItem('propfinder_favorites', JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+      }
+    } catch (err) {
+      console.error('Error deleting property:', err);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // Filtrar estrictamente cualquier propiedad que contenga "no está publicado", tags no deseados (alquilada, ocupada, nuda) o < 5 fotos
   const activeLiveProperties = useMemo(() => {
     return liveProperties.filter((p) => {
-      const t = (p.title || '').toLowerCase();
-      const s = (p.email_subject || '').toLowerCase();
-      const d = (p.description || '').toLowerCase();
-      return (
-        !t.includes('no está publicado') &&
-        !t.includes('no esta publicado') &&
-        !t.includes('ya no está') &&
-        !t.includes('ya no esta') &&
-        !t.includes('despublicado') &&
-        !s.includes('no está publicado') &&
-        !s.includes('no esta publicado') &&
-        !s.includes('ya no está') &&
-        !s.includes('ya no esta') &&
-        !d.includes('ya no está publicado') &&
-        !d.includes('ya no esta publicado')
-      );
+      const combined = `${p.title || ''} ${p.email_subject || ''} ${p.description || ''} ${p.url || ''}`;
+      if (isUnwantedProperty(combined)) {
+        return false;
+      }
+      const count = extractPhotoCount(combined);
+      if (count !== null && count < 5) {
+        return false;
+      }
+      return true;
     });
   }, [liveProperties]);
+
+  // Lista de propiedades filtrada y con los FAVORITOS SIEMPRE PRIMEROS
+  const displayedProperties = useMemo(() => {
+    const filtered = activeLiveProperties.filter((p) => {
+      if (livePropsFilter === 'viable') return p.status === 'VIABLE';
+      if (livePropsFilter === 'broker_viable') return p.is_broker_viable;
+      if (livePropsFilter === 'favorites') return favoriteIds.includes(p.id);
+      return true;
+    });
+
+    // Favoritos SIEMPRE primeros
+    return [...filtered].sort((a, b) => {
+      const aFav = favoriteIds.includes(a.id) ? 1 : 0;
+      const bFav = favoriteIds.includes(b.id) ? 1 : 0;
+      if (aFav !== bFav) {
+        return bFav - aFav;
+      }
+      return 0;
+    });
+  }, [activeLiveProperties, livePropsFilter, favoriteIds]);
 
   const fetchLiveProperties = async () => {
     setLoadingLiveProps(true);
@@ -928,7 +1004,7 @@ export default function Home() {
 
               <div className="flex items-center gap-3">
                 {/* Filtros */}
-                <div className="flex items-center bg-slate-900 border border-slate-800 p-1 rounded-xl text-xs">
+                <div className="flex items-center flex-wrap gap-1 bg-slate-900 border border-slate-800 p-1 rounded-xl text-xs">
                   <button
                     onClick={() => setLivePropsFilter('all')}
                     className={`px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
@@ -938,6 +1014,19 @@ export default function Home() {
                     }`}
                   >
                     {t.filterAll} ({activeLiveProperties.length})
+                  </button>
+                  <button
+                    onClick={() => setLivePropsFilter('favorites')}
+                    className={`px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      livePropsFilter === 'favorites'
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span>{t.filterFavorites}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-800 text-amber-300 font-bold">
+                      {activeLiveProperties.filter((p) => favoriteIds.includes(p.id)).length}
+                    </span>
                   </button>
                   <button
                     onClick={() => setLivePropsFilter('viable')}
@@ -1013,87 +1102,132 @@ export default function Home() {
                 </div>
               </div>
             ) : (
-              /* Grid exclusivamente con los inmuebles reales registrados desde Gmail / Supabase */
+              /* Grid exclusivamente con los inmuebles reales registrados desde Gmail / Supabase (Favoritos PRIMEROS) */
               <div className="space-y-4">
-                {activeLiveProperties.filter((p) => {
-                  if (livePropsFilter === 'viable') return p.status === 'VIABLE';
-                  if (livePropsFilter === 'broker_viable') return p.is_broker_viable;
-                  return true;
-                }).length === 0 ? (
+                {displayedProperties.length === 0 ? (
                   <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-8 text-center text-xs text-slate-400">
                     {t.noPropertiesFiltered}
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {activeLiveProperties
-                      .filter((p) => {
-                        if (livePropsFilter === 'viable') return p.status === 'VIABLE';
-                        if (livePropsFilter === 'broker_viable') return p.is_broker_viable;
-                        return true;
-                      })
-                      .map((prop) => {
-                        const finalPropertyUrl =
-                          prop.url && prop.url.startsWith('http')
-                            ? prop.url
-                            : `https://www.idealista.com/buscar/venta-viviendas/${encodeURIComponent((prop.district || 'barcelona').toLowerCase().replace(/[\s\']/g, '-'))}/?precio-hasta=${prop.price}`;
+                    {displayedProperties.map((prop) => {
+                      const isFavorite = favoriteIds.includes(prop.id);
+                      const finalPropertyUrl =
+                        prop.url && prop.url.startsWith('http')
+                          ? prop.url
+                          : `https://www.idealista.com/buscar/venta-viviendas/${encodeURIComponent((prop.district || 'barcelona').toLowerCase().replace(/[\s\']/g, '-'))}/?precio-hasta=${prop.price}`;
 
-                        return (
-                          <div
-                            key={prop.id}
-                            className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 flex flex-col justify-between space-y-4 hover:border-slate-700 transition-all shadow-lg"
-                          >
-                            <div className="space-y-3">
-                              {prop.image_url && (
-                                <div className="relative w-full h-44 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 group">
-                                  <img
-                                    src={prop.image_url}
-                                    alt={prop.title}
-                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                    loading="lazy"
-                                    onError={(e) => {
-                                      (e.target as HTMLElement).style.display = 'none';
-                                    }}
-                                  />
-                                  <div className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-slate-950/80 backdrop-blur-sm border border-slate-700 text-[10px] text-slate-300 font-medium">
-                                    Idealista
-                                  </div>
+                      return (
+                        <div
+                          key={prop.id}
+                          className={`rounded-2xl border p-5 flex flex-col justify-between space-y-4 transition-all shadow-lg relative ${
+                            isFavorite
+                              ? 'border-amber-500/50 bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-amber-950/20 ring-1 ring-amber-500/30 shadow-amber-950/30'
+                              : 'border-slate-800 bg-slate-900/70 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="space-y-3">
+                            {prop.image_url && (
+                              <div className="relative w-full h-44 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 group">
+                                <img
+                                  src={prop.image_url}
+                                  alt={prop.title}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                  loading="lazy"
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = 'none';
+                                  }}
+                                />
+                                <div className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-slate-950/80 backdrop-blur-sm border border-slate-700 text-[10px] text-slate-300 font-medium">
+                                  Idealista
                                 </div>
-                              )}
+                                {isFavorite && (
+                                  <div className="absolute top-2 left-2 px-2.5 py-0.5 rounded-md bg-amber-500/90 text-slate-950 font-extrabold text-[10px] tracking-wide shadow-md">
+                                    ⭐ FAVORITO
+                                  </div>
+                                )}
+                              </div>
+                            )}
 
-                              {prop.email_subject && (
-                                <div className="flex items-center gap-2 text-[11px] text-slate-400 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800/80">
-                                  <span className="text-emerald-400 font-bold">{t.badgeFromGmail}:</span>
+                            {/* Barra de cabecera de la tarjeta: Asunto de Gmail + Botón Favorito y Borrar */}
+                            <div className="flex items-center justify-between gap-2">
+                              {prop.email_subject ? (
+                                <div className="flex items-center gap-1.5 text-[11px] text-slate-400 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800/80 truncate max-w-[190px] sm:max-w-[260px]">
+                                  <span className="text-emerald-400 font-bold shrink-0">{t.badgeFromGmail}:</span>
                                   <span className="truncate">{prop.email_subject}</span>
                                 </div>
+                              ) : (
+                                <div />
                               )}
 
-                              <div className="flex items-start justify-between gap-2">
-                                <div>
+                              {/* Acciones: ⭐ Favorito y 🗑️ Borrar */}
+                              <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                                <button
+                                  type="button"
+                                  onClick={(e) => toggleFavorite(prop.id, e)}
+                                  className={`px-2.5 py-1 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                    isFavorite
+                                      ? 'bg-amber-500/25 text-amber-300 border-amber-500/60 shadow-sm shadow-amber-500/20'
+                                      : 'bg-slate-950/80 text-slate-400 hover:text-amber-400 border-slate-800 hover:border-amber-500/40'
+                                  }`}
+                                  title={isFavorite ? 'Quitar de favoritos' : 'Guardar en favoritos (aparecerá primero)'}
+                                >
+                                  <span className="text-sm leading-none">{isFavorite ? '⭐' : '☆'}</span>
+                                  <span className="text-[11px] font-semibold hidden sm:inline">{isFavorite ? 'Favorito' : 'Guardar'}</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleDeleteProperty(prop.id, e)}
+                                  disabled={deletingId === prop.id}
+                                  className="p-1.5 rounded-lg bg-slate-950/80 hover:bg-rose-950/80 text-slate-400 hover:text-rose-400 border border-slate-800 hover:border-rose-800/80 transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                                  title={t.btnDeleteProperty}
+                                >
+                                  {deletingId === prop.id ? (
+                                    <div className="w-3.5 h-3.5 border-2 border-rose-400 border-t-transparent rounded-full animate-spin"></div>
+                                  ) : (
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <div className="flex items-center gap-1.5">
                                   <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
                                     {prop.district || 'Barcelona'}
                                   </span>
-                                  <h3 className="text-base font-bold text-white mt-1.5 leading-snug">{prop.title}</h3>
+                                  {isFavorite && !prop.image_url && (
+                                    <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30">
+                                      ⭐ {t.badgeFavorite}
+                                    </span>
+                                  )}
                                 </div>
-                                <span
-                                  className={`text-xs px-2.5 py-1 rounded-full font-extrabold uppercase whitespace-nowrap ${
-                                    prop.status === 'VIABLE'
-                                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                      : prop.is_broker_viable
-                                      ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30'
-                                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                  }`}
-                                >
-                                  {prop.status === 'VIABLE'
-                                    ? t.badgeDirectViableCard
-                                    : prop.is_broker_viable
-                                    ? t.badgeBrokerViableCard(prop.best_broker_ltv || 95)
-                                    : t.statusModerateRisk}
-                                </span>
+                                <h3 className="text-base font-bold text-white mt-1.5 leading-snug">{prop.title}</h3>
                               </div>
-                              {prop.description && (
-                                <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{prop.description}</p>
-                              )}
+                              <span
+                                className={`text-xs px-2.5 py-1 rounded-full font-extrabold uppercase whitespace-nowrap ${
+                                  prop.status === 'VIABLE'
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                    : prop.is_broker_viable
+                                    ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30'
+                                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                }`}
+                              >
+                                {prop.status === 'VIABLE'
+                                  ? t.badgeDirectViableCard
+                                  : prop.is_broker_viable
+                                  ? t.badgeBrokerViableCard(prop.best_broker_ltv || 95)
+                                  : t.statusModerateRisk}
+                              </span>
                             </div>
+                            {prop.description && (
+                              <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">{prop.description}</p>
+                            )}
+                          </div>
 
                             {/* Métricas Principales */}
                             <div className="grid grid-cols-3 gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800/80 text-xs">

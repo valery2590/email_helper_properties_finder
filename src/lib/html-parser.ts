@@ -137,6 +137,9 @@ function extractRealTitle(text: string, location: string, price: number): string
   return `Inmueble en ${location} (${price.toLocaleString('es-ES')} €)`;
 }
 
+export { isUnwantedProperty, extractPhotoCount, isReformProperty } from './property-filters';
+import { isUnwantedProperty, extractPhotoCount, isReformProperty } from './property-filters';
+
 /**
  * Parsea contenido HTML (emails de Idealista, Fotocasa, Habitaclia, etc.)
  */
@@ -151,12 +154,10 @@ export function parsePropertiesFromHtml(
   // 1. REGLA FUNDAMENTAL: Si el asunto o cuerpo indica que ya NO está publicado, se omite por completo
   const subjectLower = (options?.subject || '').toLowerCase();
   const htmlLower = html.toLowerCase();
+  if (isUnwantedProperty(subjectLower) || subjectLower.includes('no está publicado')) {
+    return [];
+  }
   if (
-    subjectLower.includes('no está publicado') ||
-    subjectLower.includes('no esta publicado') ||
-    subjectLower.includes('ya no está') ||
-    subjectLower.includes('ya no esta') ||
-    subjectLower.includes('despublicado') ||
     htmlLower.includes('este inmueble ya no está publicado') ||
     htmlLower.includes('uno de tus favoritos ya no está publicado') ||
     htmlLower.includes('ya no está disponible') ||
@@ -168,6 +169,10 @@ export function parsePropertiesFromHtml(
   const $ = cheerio.load(html);
   const properties: PropertyData[] = [];
   const seenKeys = new Set<string>();
+
+  // Extraer comentarios del anunciante si existen en la clase comment (.comment, .commentsContainer, .adCommentsLanguage, etc.)
+  const globalCommentEls = $('.comment, .commentsContainer, .adCommentsLanguage, .comment-wrapper, [class*="comment"]');
+  const globalCommentsText = globalCommentEls.text() ? globalCommentEls.text().replace(/\s+/g, ' ').trim() : '';
 
   // Recolectar todos los enlaces a fotos y anuncios en el correo
   const candidateLinks: string[] = [];
@@ -234,6 +239,22 @@ export function parsePropertiesFromHtml(
     }
     const containerText = container.length > 0 ? container.text() : $(linkEl).text();
 
+    // Extraer comentario del anunciante de la clase comment (.comment, .commentsContainer, etc.)
+    const containerComment = container.find('.comment, .commentsContainer, .adCommentsLanguage, .comment-wrapper, [class*="comment"]').text() || '';
+    const relevantComment = containerComment || (propertyLinks.length <= 2 ? globalCommentsText : '');
+    const combinedContent = `${containerText} ${relevantComment}`.replace(/\s+/g, ' ').trim();
+
+    // Descartar si el anuncio contiene tags no deseados (alquilada, ocupada, nuda, en rentabilidad, a reformar, etc.)
+    if (isUnwantedProperty(combinedContent) || isUnwantedProperty(linkHref)) {
+      return;
+    }
+
+    // Descartar si el anuncio menciona menos de 5 fotos
+    const photoCount = extractPhotoCount(combinedContent);
+    if (photoCount !== null && photoCount < 5) {
+      return;
+    }
+
     const price = parsePrice(containerText);
     if (!price) return;
 
@@ -262,6 +283,11 @@ export function parsePropertiesFromHtml(
       candidateLinks[0] ||
       `https://www.idealista.com/buscar/venta-viviendas/${encodeURIComponent(location.toLowerCase().replace(/[\s\']/g, '-'))}/?precio-hasta=${price}`;
 
+    const cleanDescription = (relevantComment && !containerText.includes(relevantComment)
+      ? `${containerText} - ${relevantComment}`
+      : containerText
+    ).substring(0, 400).replace(/\s+/g, ' ').trim();
+
     properties.push({
       id: `prop-link-${index + 1}-${Date.now().toString(36)}`,
       title,
@@ -273,7 +299,7 @@ export function parsePropertiesFromHtml(
       bathrooms,
       url: safeUrl,
       imageUrl: img,
-      description: containerText.substring(0, 250).replace(/\s+/g, ' ').trim(),
+      description: cleanDescription,
       source: 'idealista_email_parser',
     });
   });
@@ -292,15 +318,21 @@ export function parsePropertiesFromHtml(
       const priceVal = parseInt(rawPrice, 10);
 
       if (priceVal >= 40000 && priceVal <= 5000000) {
+        const start = Math.max(0, match.index - 120);
+        const end = Math.min(fullText.length, match.index + 150);
+        const snippet = fullText.substring(start, end).replace(/\s+/g, ' ').trim();
+        const snippetWithComment = `${snippet} ${globalCommentsText}`.replace(/\s+/g, ' ').trim();
+
+        // Descartar si el snippet o comentario contiene tags no deseados (alquilada, ocupada, nuda, a reformar, etc.) o menos de 5 fotos
+        if (isUnwantedProperty(snippetWithComment)) continue;
+        const pCount = extractPhotoCount(snippetWithComment);
+        if (pCount !== null && pCount < 5) continue;
+
         const dedupKey = `text-${priceVal}`;
         if (seenKeys.has(dedupKey)) continue;
         seenKeys.add(dedupKey);
 
-        const start = Math.max(0, match.index - 120);
-        const end = Math.min(fullText.length, match.index + 150);
-        const snippet = fullText.substring(start, end).replace(/\s+/g, ' ').trim();
         const location = detectDistrict(snippet, options?.subject);
-
         const realTitle = extractRealTitle(snippet, location, priceVal);
 
         // Extraer m² y habitaciones del snippet
@@ -319,6 +351,11 @@ export function parsePropertiesFromHtml(
         // Asignar foto real del correo
         const assignedImg = candidateImages[fallbackIdx - 1] || candidateImages[0] || undefined;
 
+        const assignedDesc = (globalCommentsText && !snippet.includes(globalCommentsText)
+          ? `${snippet} - ${globalCommentsText}`
+          : snippet
+        ).substring(0, 400).replace(/\s+/g, ' ').trim();
+
         properties.push({
           id: `prop-text-${fallbackIdx}-${Date.now().toString(36)}`,
           title: realTitle,
@@ -329,7 +366,7 @@ export function parsePropertiesFromHtml(
           rooms,
           url: assignedUrl,
           imageUrl: assignedImg,
-          description: snippet,
+          description: assignedDesc,
           source: 'idealista_text_extractor',
         });
         fallbackIdx++;
@@ -338,18 +375,16 @@ export function parsePropertiesFromHtml(
     }
   }
 
-  // Filtrado final de seguridad: descartar cualquier propiedad cuyo título contenga "no está publicado"
+  // Filtrado final de seguridad: descartar cualquier propiedad no deseada o con < 5 fotos
   return properties.filter((p) => {
-    const t = (p.title || '').toLowerCase();
-    const d = (p.description || '').toLowerCase();
-    return (
-      !t.includes('no está publicado') &&
-      !t.includes('no esta publicado') &&
-      !t.includes('ya no está') &&
-      !t.includes('ya no esta') &&
-      !t.includes('despublicado') &&
-      !d.includes('ya no está publicado') &&
-      !d.includes('ya no esta publicado')
-    );
+    const combined = `${p.title || ''} ${p.description || ''} ${p.url || ''}`;
+    if (isUnwantedProperty(combined)) {
+      return false;
+    }
+    const count = extractPhotoCount(combined);
+    if (count !== null && count < 5) {
+      return false;
+    }
+    return true;
   });
 }
